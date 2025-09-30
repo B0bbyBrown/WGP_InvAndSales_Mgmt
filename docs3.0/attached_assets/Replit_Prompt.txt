@@ -1,0 +1,530 @@
+🚚 Replit Prompt — “Pizza Truck Ops” (Astro + Express API + Supabase)
+
+Goal: Build a one-stop web app for a pizza food truck to track inventory & purchases, recipes (BOM), sales that auto-deplete stock via FIFO, cash sessions, expenses, and a KPI dashboard.
+Stack requirements: Astro frontend, Express API layer, Supabase database, CSS Modules (no Tailwind).
+
+1) Tech Stack & Project Setup
+
+Frontend: Astro + TypeScript + CSS Modules (no Tailwind).
+
+API Layer: Express (TypeScript) under /server with Zod validation.
+
+DB: Supabase (Postgres). Use service-role key on server only; anon key on client.
+
+Auth: Supabase Auth (email+OTP for v1). Protect API with Supabase JWT verification middleware; role-based guards (ADMIN, CASHIER, KITCHEN).
+
+Data Access:
+
+Server (Express): @supabase/supabase-js with service role for trusted mutations.
+
+Client (Astro islands): @supabase/supabase-js with anon key for read-only views when appropriate.
+
+Validation/Errors: Zod + typed error helpers.
+
+Testing: Vitest (unit) + supertest for API smoke tests.
+
+Dev experience: Concurrent dev for Astro & Express, dotenv, ESLint/Prettier.
+
+Do this automatically:
+
+Create a monorepo-style project:
+
+/app          -> Astro frontend
+/server       -> Express API (TypeScript)
+/packages     -> shared types & zod schemas
+
+
+Add scripts to run both with concurrently.
+
+Wire environment variables (see §9).
+
+Install: astro, express, zod, @supabase/supabase-js, jsonwebtoken, cors, dotenv, vitest, supertest, concurrently, nodemon, tsx.
+
+2) Folder Structure
+.
+├─ app/                      # Astro frontend (CSR islands where needed)
+│  ├─ src/
+│  │  ├─ components/         # React islands (POS, tables, charts)
+│  │  ├─ layouts/
+│  │  ├─ pages/
+│  │  │  ├─ index.astro      # /dashboard
+│  │  │  ├─ login.astro
+│  │  │  ├─ inventory.astro
+│  │  │  ├─ products.astro
+│  │  │  ├─ purchases.astro
+│  │  │  ├─ sales.astro      # POS
+│  │  │  ├─ sessions.astro
+│  │  │  ├─ expenses.astro
+│  │  │  └─ reports.astro
+│  │  ├─ lib/api.ts          # client -> Express helpers
+│  │  ├─ lib/supabaseClient.ts
+│  │  └─ styles/*.module.css
+│  └─ astro.config.mjs
+├─ server/
+│  ├─ src/
+│  │  ├─ index.ts            # Express bootstrap
+│  │  ├─ auth/
+│  │  │  ├─ supabase.ts      # server client (service role)
+│  │  │  └─ guard.ts         # JWT verify & role guard
+│  │  ├─ routes/
+│  │  │  ├─ auth.ts
+│  │  │  ├─ ingredients.ts
+│  │  │  ├─ products.ts
+│  │  │  ├─ purchases.ts
+│  │  │  ├─ stock.ts
+│  │  │  ├─ sales.ts         # FIFO depletion here
+│  │  │  ├─ sessions.ts
+│  │  │  ├─ expenses.ts
+│  │  │  └─ reports.ts
+│  │  ├─ logic/
+│  │  │  ├─ fifo.ts          # core FIFO algorithm
+│  │  │  └─ pricing.ts       # totals, cogs, margin
+│  │  ├─ schemas/            # Zod schemas (also exported by /packages)
+│  │  └─ utils/
+│  └─ test/
+├─ packages/
+│  └─ shared/
+│     ├─ index.ts            # shared types/enums/zod
+│     └─ schemas.ts
+└─ .replit / replit.nix / package.json / README.md
+
+3) Database (Supabase) — Tables & Relationships
+
+Create these via Supabase SQL editor. Enable RLS on all tables; add policies in §4.
+
+Entities
+
+users (managed by Supabase Auth). Add role column (enum: ADMIN, CASHIER, KITCHEN).
+
+ingredients, inventory_lots (FIFO), suppliers, purchases, purchase_items
+
+products, recipe_items (BOM)
+
+sales, sale_items
+
+stock_movements (audit log)
+
+cash_sessions
+
+expenses
+
+SQL (abbreviated; use snake_case):
+
+-- enums
+create type role as enum ('ADMIN','CASHIER','KITCHEN');
+create type payment_type as enum ('CASH','CARD','OTHER');
+create type movement_kind as enum ('PURCHASE','SALE_CONSUME','ADJUSTMENT','WASTAGE');
+
+-- users profile
+alter table auth.users add column if not exists role role default 'CASHIER';
+
+-- ingredients
+create table if not exists public.ingredients (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  unit text not null, -- 'g','kg','ml','l','unit'
+  low_stock_level double precision,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- inventory lots (FIFO)
+create table if not exists public.inventory_lots (
+  id uuid primary key default gen_random_uuid(),
+  ingredient_id uuid references public.ingredients(id) on delete cascade,
+  quantity double precision not null,           -- remaining in same unit as ingredient
+  unit_cost double precision not null,          -- cost per unit at purchase time
+  purchased_at timestamptz default now(),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- suppliers, purchases, purchase_items
+create table if not exists public.suppliers (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  phone text, email text,
+  created_at timestamptz default now(), updated_at timestamptz default now()
+);
+
+create table if not exists public.purchases (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid references public.suppliers(id),
+  notes text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.purchase_items (
+  id uuid primary key default gen_random_uuid(),
+  purchase_id uuid references public.purchases(id) on delete cascade,
+  ingredient_id uuid references public.ingredients(id),
+  quantity double precision not null,
+  total_cost double precision not null
+);
+
+-- products + recipes
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  sku text unique not null,
+  price double precision not null,
+  active boolean default true,
+  created_at timestamptz default now(), updated_at timestamptz default now()
+);
+
+create table if not exists public.recipe_items (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid references public.products(id) on delete cascade,
+  ingredient_id uuid references public.ingredients(id),
+  quantity double precision not null
+);
+
+-- sales + sale_items
+create table if not exists public.cash_sessions (
+  id uuid primary key default gen_random_uuid(),
+  opened_at timestamptz default now(),
+  opened_by uuid references auth.users(id),
+  closed_at timestamptz,
+  closed_by uuid references auth.users(id),
+  opening_float double precision default 0,
+  closing_float double precision,
+  notes text
+);
+
+create table if not exists public.sales (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid references public.cash_sessions(id),
+  user_id uuid references auth.users(id),
+  total double precision not null,
+  cogs double precision not null,   -- computed via FIFO
+  payment_type payment_type not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.sale_items (
+  id uuid primary key default gen_random_uuid(),
+  sale_id uuid references public.sales(id) on delete cascade,
+  product_id uuid references public.products(id),
+  qty integer not null,
+  unit_price double precision not null,
+  line_total double precision not null
+);
+
+-- stock movements
+create table if not exists public.stock_movements (
+  id uuid primary key default gen_random_uuid(),
+  kind movement_kind not null,
+  ingredient_id uuid references public.ingredients(id),
+  quantity double precision not null,         -- negative for consumption
+  reference text,                             -- sale_id, purchase_id, manual_adj, etc.
+  note text,
+  created_at timestamptz default now()
+);
+
+-- expenses
+create table if not exists public.expenses (
+  id uuid primary key default gen_random_uuid(),
+  label text not null,
+  amount double precision not null,
+  paid_via payment_type not null,
+  created_at timestamptz default now()
+);
+
+4) RLS & Policies
+
+Enable RLS:
+
+alter table public.ingredients enable row level security;
+alter table public.inventory_lots enable row level security;
+alter table public.suppliers enable row level security;
+alter table public.purchases enable row level security;
+alter table public.purchase_items enable row level security;
+alter table public.products enable row level security;
+alter table public.recipe_items enable row level security;
+alter table public.sales enable row level security;
+alter table public.sale_items enable row level security;
+alter table public.stock_movements enable row level security;
+alter table public.cash_sessions enable row level security;
+alter table public.expenses enable row level security;
+
+
+Simple policy set (adjust as needed):
+
+-- Read for authenticated users
+create policy "read_all_auth" on public.ingredients for select using (auth.role() is not null);
+-- Repeat for each table...
+
+-- Write restricted by role (server uses service role bypassing RLS)
+-- For client-side writes (if any), use role checks:
+create policy "insert_admin" on public.products for insert with check (auth.jwt() ->> 'role' in ('ADMIN'));
+
+
+Note: The Express server will use the service role key → bypasses RLS. The client uses anon key → read-only (or limited writes if you add specific policies).
+
+5) Core Server Logic (Express)
+
+Endpoints (prefixed /api) — all POST/PUT validate with Zod and run as transactions (logical, since we’re using Supabase JS):
+
+POST /auth/login (optional if using client Supabase Auth UI)
+
+GET /me → return profile & role from JWT
+
+GET /ingredients
+
+POST /ingredients { name, unit, lowStockLevel? }
+
+POST /purchases { supplier, items:[{ingredientId, quantity, totalCost}], notes? }
+
+Creates purchase, items, then inventory_lots with unit_cost = totalCost/quantity + stock_movements (PURCHASE).
+
+POST /stock/adjust { ingredientId, quantity, note? } → positive/negative stock_movements (ADJUSTMENT/WASTAGE)
+
+GET /products
+
+POST /products { name, sku, price, recipe:[{ingredientId, quantity}] }
+
+GET /sales?from=&to=
+
+POST /sales { items:[{productId, qty}], paymentType }
+
+Computes line totals
+
+FIFO depletion per recipe item:
+
+Load recipe_items for each product
+
+For each required ingredient, compute required = qty * recipe.quantity
+
+Consume from inventory_lots ordered by purchased_at ASC, updating quantity, creating stock_movements (SALE_CONSUME), accumulating COGS
+
+Create sales + sale_items (atomic from app side; if any ingredient insufficient → fail with clear error)
+
+GET /sessions/active
+
+POST /sessions/open { openingFloat }
+
+POST /sessions/close { closingFloat, notes? } → returns expected vs counted by payment type
+
+GET /expenses
+
+POST /expenses { label, amount, paidVia }
+
+Reports GET /reports/overview?from=&to= returns:
+
+Revenue, COGS, Gross Margin %
+
+Sales by product (qty, revenue, COGS, margin)
+
+Ingredient usage totals & low-stock list
+
+Server middleware:
+
+guard.ts verifies Supabase JWT (from Authorization: Bearer <token>), attaches userId & role.
+
+roleGuard('ADMIN'|'CASHIER'|...) for write endpoints when you want client-side writes.
+
+6) Frontend (Astro) — Pages & Islands
+
+Pages (Astro) with React islands for interactive parts:
+
+/login → Supabase Auth (magic link / OTP). On success, store session, fetch /api/me.
+
+/ (Dashboard)
+KPIs: Today’s Revenue, COGS, GM%, Top Products, Low Stock, mini chart (last 7 days).
+
+/inventory
+Table of ingredients with qty on hand (sum lots) & low-stock badges. Buttons: Adjust +/-.
+
+/purchases
+New purchase form (supplier, lines). Show lot preview (unit cost).
+
+/products
+CRUD products + Recipe editor (ingredient + per-unit qty).
+
+/sales (POS)
+Search SKU/name → add lines → qty → preview totals & est. COGS → select payment → Submit. Show helpful error if short stock.
+
+/sessions
+Open/close till; show expected vs counted cash; card totals; variance.
+
+/expenses
+Simple logger.
+
+/reports
+Date range filters → Revenue/COGS/GM%, Sales by product, Ingredient usage.
+
+Use CSS Modules for styling; keep UI minimal and responsive.
+
+7) Seed Data
+
+Create server/src/seed.ts to insert:
+
+Ingredients: Flour(kg), Tomato Sauce(ml), Mozzarella(g), Basil(g), Olive Oil(ml), Soft Drink Can(unit)
+
+Supplier: FreshCo
+
+Purchases → inventory_lots:
+
+Flour 25kg @ 300
+
+Tomato Sauce 5000ml @ 250
+
+Mozzarella 5000g @ 900
+
+Basil 200g @ 80
+
+Olive Oil 2000ml @ 200
+
+Soft Drink Can 48 @ 360
+
+Products:
+
+Margherita (PIZ-MARG, price 90)
+
+Flour 0.25kg, Tomato 120ml, Mozzarella 150g, Basil 2g, Olive Oil 5ml
+
+Coke 330ml (DRK-COKE, price 20) → Soft Drink Can 1 unit
+
+One open session + a couple of example sales.
+
+8) FIFO Algorithm (server/src/logic/fifo.ts)
+
+Implement function:
+
+type Lot = { id: string; quantity: number; unit_cost: number };
+type ConsumeResult = {
+  totalCost: number;
+  movements: { lotId: string; consumed: number; unitCost: number }[];
+};
+
+async function consumeFIFO(
+  supabaseSrv, ingredientId: string, requiredQty: number
+): Promise<ConsumeResult> {
+  // 1) get lots ordered by purchased_at asc with quantity > 0
+  // 2) loop until requiredQty <= 0 or out of stock
+  // 3) update each lot's quantity; accumulate cost; collect movements
+  // 4) insert stock_movements rows (SALE_CONSUME, negative qty)
+  // 5) if insufficient total, rollback by throwing (call site handles tx pattern)
+}
+
+
+Call this for each recipe item × sale qty and sum to sale.cogs.
+
+9) Environment & Scripts
+
+Root .env
+
+# Frontend
+PUBLIC_API_BASE=http://localhost:8787/api
+
+# Supabase
+SUPABASE_URL=YOUR_PROJECT_URL
+SUPABASE_ANON_KEY=YOUR_ANON_KEY
+
+# Server-side
+SUPABASE_SERVICE_ROLE=YOUR_SERVICE_ROLE_KEY
+JWT_SECRET=generate_a_strong_secret_if_needed_for_custom_tokens
+PORT=8787
+
+
+app/.env
+
+PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+PUBLIC_API_BASE=${PUBLIC_API_BASE}
+
+
+server/.env
+
+SUPABASE_URL=${SUPABASE_URL}
+SUPABASE_SERVICE_ROLE=${SUPABASE_SERVICE_ROLE}
+PORT=${PORT}
+
+
+package.json (root) scripts
+
+{
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB \"pnpm --filter server dev\" \"pnpm --filter app dev\"",
+    "build": "pnpm -r build",
+    "seed": "tsx server/src/seed.ts",
+    "test": "vitest run"
+  }
+}
+
+
+server/package.json
+
+{
+  "scripts": {
+    "dev": "nodemon --watch src --exec tsx src/index.ts",
+    "start": "node dist/index.js"
+  }
+}
+
+
+app/package.json
+
+{
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  }
+}
+
+10) API Contracts (Zod)
+
+Define shared Zod schemas in /packages/shared/schemas.ts (imported by both server & app) for:
+
+NewIngredient, NewPurchase, NewProductWithRecipe, NewSale, StockAdjust, OpenSession, CloseSession, NewExpense
+
+Typed API responses: SaleResponse with { id, total, cogs, grossMarginPct, items: [...] }
+
+11) Reports Queries (server/routes/reports.ts)
+
+overview:
+
+sum(sales.total), sum(sales.cogs), gross_margin_pct
+
+Product mix: join sale_items → group by product
+
+Ingredient usage: sum from stock_movements where kind = 'SALE_CONSUME' group by ingredient
+
+Add low-stock query: aggregate sum(inventory_lots.quantity) vs ingredients.low_stock_level.
+
+12) Minimal Tests
+
+FIFO unit tests: multi-lot depletion yields correct COGS & leaves correct residuals.
+
+Sales API: insufficient stock → 400 with clear message.
+
+Purchase → creates lots & movements.
+
+13) Acceptance Criteria
+
+Sales decrement inventory via FIFO, create stock_movements, compute COGS, return { total, cogs, grossMarginPct }.
+
+Purchases create inventory_lots and PURCHASE movements.
+
+Dashboard shows: Today’s Revenue, COGS, GM%, Top Products, Low Stock list.
+
+Sessions reconcile expected vs counted cash & show variance.
+
+All secrets stay server-side; client uses anon key only.
+
+Notes for the Agent
+
+Generate all boilerplate + example UI (tables/forms) with CSS Modules.
+
+Prefer server-side mutations through Express using the service role key.
+
+Keep code modular, comment the FIFO logic clearly, and centralize Zod schemas.
+
+Provide a README.md with: setup steps, Supabase SQL to paste, env var guide, and screenshots.
+
+If anything is ambiguous, make the least-surprising, production-sane choice and keep it configurable.
+
+Is this conversation helpful so far?
+
+ChatGPT can make mistakes. Check important info. See Cookie Preferences
