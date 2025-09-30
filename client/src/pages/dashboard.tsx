@@ -14,7 +14,7 @@ import {
   Package,
   ArrowRight,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "@/hooks/use-query";
 import {
   getOverview,
   getTopProducts,
@@ -31,25 +31,29 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/lib/format";
 
 export default function Dashboard() {
-  const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ["/api/reports/overview"],
-    queryFn: () => getOverview(),
-  });
+  const { data: overview, isLoading: overviewLoading } = useApiQuery(
+    ["/api/reports/overview"],
+    getOverview
+  );
 
-  const { data: topProducts = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["/api/reports/top-products"],
-    queryFn: () => getTopProducts(),
-  });
+  const { data: topProducts = [], isLoading: productsLoading } = useApiQuery(
+    ["/api/reports/top-products"],
+    () =>
+      getTopProducts(
+        new Date(new Date().setHours(0, 0, 0, 0)),
+        new Date(new Date().setHours(23, 59, 59, 999))
+      )
+  );
 
-  const { data: lowStockItems = [], isLoading: stockLoading } = useQuery({
-    queryKey: ["/api/stock/low"],
-    queryFn: () => getLowStock(),
-  });
+  const { data: lowStockItems = [], isLoading: stockLoading } = useApiQuery(
+    ["/api/stock/low"],
+    getLowStock
+  );
 
-  const { data: recentActivity = [], isLoading: activityLoading } = useQuery({
-    queryKey: ["/api/reports/activity"],
-    queryFn: () => getRecentActivity(5),
-  });
+  const { data: recentActivity = [], isLoading: activityLoading } = useApiQuery(
+    ["/api/reports/activity"],
+    () => getRecentActivity(5)
+  );
 
   // Compute yesterday range for comparisons
   const today = new Date();
@@ -63,18 +67,18 @@ export default function Dashboard() {
   const endOfYesterday = new Date(endOfToday);
   endOfYesterday.setDate(endOfYesterday.getDate() - 1);
 
-  const { data: yesterdaySales = [] } = useQuery({
-    queryKey: [
+  const { data: yesterdaySales = [] } = useApiQuery(
+    [
       "/api/sales",
       startOfYesterday.toISOString(),
       endOfYesterday.toISOString(),
     ],
-    queryFn: () =>
-      getSales(
+    () =>
+      getOverview(
         startOfYesterday.toISOString().split("T")[0],
         endOfYesterday.toISOString().split("T")[0]
-      ),
-  });
+      )
+  );
 
   const yesterdayRevenue = Array.isArray(yesterdaySales)
     ? yesterdaySales.reduce(
@@ -107,18 +111,14 @@ export default function Dashboard() {
   const startOfWindow = new Date(startOfToday);
   startOfWindow.setDate(startOfWindow.getDate() - 6);
 
-  const { data: windowSales = [], isLoading: salesTrendLoading } = useQuery({
-    queryKey: [
-      "/api/sales",
-      startOfWindow.toISOString(),
-      endOfToday.toISOString(),
-    ],
-    queryFn: () =>
-      getSales(
+  const { data: windowSales = [], isLoading: salesTrendLoading } = useApiQuery(
+    ["/api/sales", startOfWindow.toISOString(), endOfToday.toISOString()],
+    () =>
+      getOverview(
         startOfWindow.toISOString().split("T")[0],
         endOfToday.toISOString().split("T")[0]
-      ),
-  });
+      )
+  );
 
   const dayKey = (d: Date) => d.toISOString().split("T")[0];
   const labels = Array.from({ length: 7 }).map((_, idx) => {

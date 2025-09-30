@@ -44,6 +44,18 @@ export default defineConfig({
       "dist/public"
     ),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("recharts")) {
+              return "recharts";
+            }
+            return "vendor";
+          }
+        },
+      },
+    },
   },
   server: {
     proxy: {

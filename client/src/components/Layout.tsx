@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { getActiveCashSession, getLowStock } from "@/lib/api";
 import { useContext } from "react";
-import { AuthContext } from "../App"; // Adjust path if needed
+import { AuthContext } from "@/contexts/AuthContext";
 import { apiRequest } from "../lib/api";
 
 interface LayoutProps {

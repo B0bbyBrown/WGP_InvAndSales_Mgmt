@@ -40,8 +40,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Seed the database if no admin user exists
-  await seed();
+  // Seed the database if the RESET_DB environment variable is set
+  if (process.env.RESET_DB) {
+    await seed();
+  }
 
   const server = await registerRoutes(app);
 

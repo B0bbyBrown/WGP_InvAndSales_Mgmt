@@ -1,6 +1,5 @@
-import { Switch, Route, useLocation, Router } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { Switch, Route, useLocation, Router, Redirect } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -14,109 +13,128 @@ import Expenses from "@/pages/expenses";
 import Reports from "@/pages/reports";
 import Users from "@/pages/Users";
 import Login from "@/pages/Login";
-import { createContext, useState, useEffect, useContext } from "react";
+import { useContext, useEffect } from "react";
 import { getCurrentUser } from "@/lib/api"; // Assume this calls /api/auth/me
-
-export const AuthContext = createContext({ user: null, loading: true });
+import { AuthContext } from "./contexts/AuthContext";
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: user,
+    isLoading,
+    isSuccess,
+  } = useQuery({
+    queryKey: ["user"],
+    queryFn: getCurrentUser,
+    retry: false,
+  });
+
+  const isAuthenticated = isSuccess && !!user;
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-      } catch (error) {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkAuth();
-  }, []);
+    if (isAuthenticated && location === "/login") {
+      setLocation("/dashboard");
+    }
+  }, [isAuthenticated, location, setLocation]);
 
-  if (loading) return <div>Loading...</div>;
+  console.log("App authentication state:", {
+    isLoading,
+    isAuthenticated,
+    user: user ? user.id : null,
+  });
+
+  if (isLoading) return <div>Loading...</div>;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={{ user, loading }}>
-        <TooltipProvider>
-          <Router>
-            <Switch>
-              <Route path="/login" component={Login} />
-              <ProtectedRoute
-                path="/"
-                component={Dashboard}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/inventory"
-                component={Inventory}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/products"
-                component={Products}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/purchases"
-                component={Purchases}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/sales"
-                component={Sales}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/sessions"
-                component={Sessions}
-                requiredRole="CASHIER"
-              />
-              <ProtectedRoute
-                path="/expenses"
-                component={Expenses}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/reports"
-                component={Reports}
-                requiredRole="ANY"
-              />
-              <ProtectedRoute
-                path="/users"
-                component={Users}
-                requiredRole="ADMIN"
-              />
-              <Route component={NotFound} />
-            </Switch>
-          </Router>
-        </TooltipProvider>
-        <Toaster />
-      </AuthContext.Provider>
-    </QueryClientProvider>
+    <AuthContext.Provider value={{ user, loading: isLoading, isAuthenticated }}>
+      <TooltipProvider>
+        <Router>
+          <Switch>
+            <Route path="/login">
+              {isAuthenticated ? <Redirect to="/dashboard" /> : <Login />}
+            </Route>
+            <Redirect path="/" to="/dashboard" />
+            <ProtectedRoute
+              path="/dashboard"
+              component={Dashboard}
+              allowedRoles={["ADMIN", "CASHIER", "KITCHEN"]}
+            />
+            <ProtectedRoute
+              path="/inventory"
+              component={Inventory}
+              allowedRoles={["ADMIN", "KITCHEN"]}
+            />
+            <ProtectedRoute
+              path="/products"
+              component={Products}
+              allowedRoles={["ADMIN", "KITCHEN"]}
+            />
+            <ProtectedRoute
+              path="/purchases"
+              component={Purchases}
+              allowedRoles={["ADMIN", "KITCHEN"]}
+            />
+            <ProtectedRoute
+              path="/sales"
+              component={Sales}
+              allowedRoles={["ADMIN", "CASHIER"]}
+            />
+            <ProtectedRoute
+              path="/sessions"
+              component={Sessions}
+              allowedRoles={["ADMIN", "CASHIER"]}
+            />
+            <ProtectedRoute
+              path="/expenses"
+              component={Expenses}
+              allowedRoles={["ADMIN", "CASHIER"]}
+            />
+            <ProtectedRoute
+              path="/reports"
+              component={Reports}
+              allowedRoles={["ADMIN"]}
+            />
+            <ProtectedRoute
+              path="/users"
+              component={Users}
+              allowedRoles={["ADMIN"]}
+            />
+            <Route component={NotFound} />
+          </Switch>
+        </Router>
+      </TooltipProvider>
+      <Toaster />
+    </AuthContext.Provider>
   );
 }
 
-const ProtectedRoute = ({ path, component: Component, requiredRole }) => {
-  const { user } = useContext(AuthContext);
-  const [location, setLocation] = useLocation();
+const ProtectedRoute = ({ path, component: Component, allowedRoles }) => {
+  const { isAuthenticated, user, loading } = useContext(AuthContext);
 
-  if (!user) {
-    setLocation("/login");
-    return null;
+  console.log(`ProtectedRoute for ${path}:`, {
+    loading,
+    isAuthenticated,
+    userRole: user?.role,
+  });
+
+  if (loading) {
+    return <div>Loading...</div>; // Or a spinner component
   }
-  if (
-    requiredRole !== "ANY" &&
-    user.role !== requiredRole &&
-    user.role !== "ADMIN"
-  ) {
-    setLocation("/");
-    return null;
+
+  if (!isAuthenticated) {
+    console.log(`Redirecting to /login from ${path} - not authenticated`);
+    return <Redirect to="/login" />;
   }
+
+  const userHasRequiredRole = user && allowedRoles.includes(user.role);
+
+  if (!userHasRequiredRole) {
+    console.log(`Redirecting to /dashboard from ${path} - insufficient role`);
+    // If the user is authenticated but doesn't have the right role,
+    // redirect them to the dashboard.
+    return <Redirect to="/dashboard" />;
+  }
+
   return <Route path={path} component={Component} />;
 };
 

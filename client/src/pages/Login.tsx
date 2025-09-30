@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useContext } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,22 +7,39 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { login } from "@/lib/api"; // Assume this is added as POST /api/auth/login
 import { useToast } from "@/hooks/use-toast";
+import { AuthContext } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [location, setLocation] = useLocation();
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { isAuthenticated } = useContext(AuthContext);
+
+  useEffect(() => {
+    if (loginSuccess && isAuthenticated) {
+      setLocation("/dashboard");
+    }
+  }, [loginSuccess, isAuthenticated, setLocation]);
 
   const loginMutation = useMutation({
     mutationFn: (data: { email: string; password: string }) => login(data),
-    onSuccess: () => setLocation("/"),
-    onError: () =>
+    onSuccess: async (response) => {
+      console.log("Login successful - setting user data");
+      queryClient.setQueryData(["user"], response.user);
+      console.log("User data set - redirecting to dashboard");
+      setLocation("/dashboard");
+    },
+    onError: (error) => {
+      console.log("Login error:", error);
       toast({
         title: "Login Failed",
         description: "Invalid credentials",
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   const handleSubmit = (e) => {

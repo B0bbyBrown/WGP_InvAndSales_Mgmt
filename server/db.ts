@@ -1,15 +1,25 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import * as schema from "@shared/schema";
+import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
-// Create SQLite database file in the project root
-const dbPath = path.join(process.cwd(), "pizza-truck.db");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_PATH = path.join(__dirname, "..", "..", "pizza-truck.db");
 
-console.log(`🗄️ Initializing SQLite database at: ${dbPath}`);
+// Reset database if RESET_DB is set
+if (process.env.RESET_DB) {
+  if (fs.existsSync(DB_PATH)) {
+    fs.unlinkSync(DB_PATH);
+    console.log("💥 Database reset");
+  }
+}
+
+console.log(`🗄️ Initializing SQLite database at: ${DB_PATH}`);
 
 // Create the SQLite database connection
-export const sqlite = new Database(dbPath);
+export const sqlite = new Database(DB_PATH);
 
 // Enable foreign keys for SQLite (important for referential integrity)
 sqlite.pragma("foreign_keys = ON");
@@ -182,4 +192,4 @@ try {
   throw error;
 }
 
-console.log(`✅ SQLite database ready at: ${dbPath}`);
+console.log(`✅ SQLite database ready at: ${DB_PATH}`);

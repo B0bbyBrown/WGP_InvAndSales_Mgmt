@@ -73,7 +73,17 @@ export const getSaleItems = (saleId: string) =>
 export const getCashSessions = () => apiRequest("GET", "/api/sessions");
 export const getActiveCashSession = () =>
   apiRequest("GET", "/api/sessions/active");
-export const getCurrentUser = () => apiRequest("GET", "/api/auth/me");
+export const getCurrentUser = async () => {
+  try {
+    const response = await apiRequest("/api/auth/me");
+    return response.user;
+  } catch (error) {
+    if (error.status === 401) {
+      return null;
+    }
+    throw error;
+  }
+};
 export const login = (data: { email: string; password: string }) =>
   apiRequest("POST", "/api/auth/login", data);
 export const getUsers = () => apiRequest("GET", "/api/users");

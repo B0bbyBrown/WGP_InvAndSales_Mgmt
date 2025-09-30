@@ -32,18 +32,21 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+export type SafeUser = Omit<User, "password">;
+
 export interface IStorage {
   // Users
-  getUser(id: string): Promise<User | undefined>;
+  getUser(id: string): Promise<SafeUser | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: string, user: Partial<InsertUser>): Promise<User>;
-  loginUser(email: string, password: string): Promise<User | null>; // Returns user without password if credentials match
-  getUsers(): Promise<User[]>;
+  createUser(user: InsertUser): Promise<SafeUser>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<SafeUser>;
+  loginUser(email: string, password: string): Promise<SafeUser | null>; // Returns user without password if credentials match
+  getUsers(): Promise<SafeUser[]>;
 
   // Ingredients
   getIngredients(): Promise<Ingredient[]>;
   getIngredient(id: string): Promise<Ingredient | undefined>;
+  getIngredientByName(name: string): Promise<Ingredient | undefined>;
   createIngredient(ingredient: InsertIngredient): Promise<Ingredient>;
   updateIngredient(
     id: string,

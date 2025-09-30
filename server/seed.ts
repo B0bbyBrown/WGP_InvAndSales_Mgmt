@@ -1,7 +1,5 @@
 import { storage } from "./storage";
-import bcrypt from "bcrypt";
-
-const SALT_ROUNDS = 10;
+import { hashPassword } from "./lib/auth";
 
 export async function seed() {
   console.log("Starting seed process...");
@@ -10,66 +8,47 @@ export async function seed() {
     // Create admin user (idempotent) - this is the only required seed data
     const adminUser = await storage.getUserByEmail("admin@pizzatruck.com");
     if (!adminUser) {
-      const hashedPassword = await bcrypt.hash("password", SALT_ROUNDS);
+      const hashedPassword = hashPassword("password");
       await storage.createUser({
         email: "admin@pizzatruck.com",
         password: hashedPassword,
         name: "John Smith",
         role: "ADMIN",
       });
-      console.log("Created admin user:", "admin@pizzatruck.com");
     }
     const secondAdminUser = await storage.getUserByEmail(
       "6obbybrown@gmail.com"
     );
     if (!secondAdminUser) {
-      const hashedPassword = await bcrypt.hash("password", SALT_ROUNDS);
+      const hashedPassword = hashPassword("Bobby2004brown");
       await storage.createUser({
         email: "6obbybrown@gmail.com",
         password: hashedPassword,
         name: "Bobby Brown",
         role: "ADMIN",
       });
-      console.log("Created admin user:", "6obbybrown@gmail.com");
     }
 
     // Create sample ingredients
-    const seededIngredients = await Promise.all([
-      storage.createIngredient({
-        name: "Pizza Dough",
-        unit: "g",
-        lowStockLevel: 1000,
-      }),
-      storage.createIngredient({
-        name: "Tomato Sauce",
-        unit: "ml",
-        lowStockLevel: 500,
-      }),
-      storage.createIngredient({
-        name: "Mozzarella Cheese",
-        unit: "g",
-        lowStockLevel: 1000,
-      }),
-      storage.createIngredient({
-        name: "Pepperoni",
-        unit: "g",
-        lowStockLevel: 500,
-      }),
-      storage.createIngredient({
-        name: "Basil",
-        unit: "g",
-        lowStockLevel: 500,
-      }),
-      storage.createIngredient({
-        name: "Coca-Cola",
-        unit: "ml",
-        lowStockLevel: 1000,
-      }),
-    ]);
-    console.log(`Created ${seededIngredients.length} ingredients`);
+    const ingredientsToSeed = [
+      { name: "Pizza Dough", unit: "g", lowStockLevel: 1000 },
+      { name: "Tomato Sauce", unit: "ml", lowStockLevel: 500 },
+      { name: "Mozzarella Cheese", unit: "g", lowStockLevel: 1000 },
+      { name: "Pepperoni", unit: "g", lowStockLevel: 500 },
+      { name: "Basil", unit: "g", lowStockLevel: 500 },
+      { name: "Coca-Cola", unit: "ml", lowStockLevel: 1000 },
+    ];
+
+    const seededIngredients = [];
+    for (const ingredientData of ingredientsToSeed) {
+      let ingredient = await storage.getIngredientByName(ingredientData.name);
+      if (!ingredient) {
+        ingredient = await storage.createIngredient(ingredientData);
+      }
+      seededIngredients.push(ingredient);
+    }
 
     // Add initial stock for each ingredient
-    console.log("Adding initial stock...");
     for (const ingredient of seededIngredients) {
       // We use adjustStock here because it correctly creates an inventory lot and a stock movement.
       // We'll add a large amount (20kg or 20L) to ensure there's plenty for testing.
@@ -79,9 +58,8 @@ export async function seed() {
         note: "Initial stock seeding",
       });
     }
-    console.log(
-      `Added initial stock for ${seededIngredients.length} ingredients`
-    );
+
+    const seededProduct = await storage.getProducts();
 
     // Create sample products
     const productsToSeed = [
@@ -116,13 +94,19 @@ export async function seed() {
     ];
 
     for (const p of productsToSeed) {
-      const product = await storage.createProduct({
-        name: p.name,
-        sku: p.sku,
-        price: p.price,
-      });
+      // Upsert product
+      let product = seededProduct.find((prod) => prod.sku === p.sku);
+      if (!product) {
+        product = await storage.createProduct({
+          name: p.name,
+          sku: p.sku,
+          price: p.price,
+        });
+      }
 
       if (p.recipe.length > 0) {
+        // Clear existing recipe items
+        await storage.deleteRecipeItems(product.id);
         for (const rItem of p.recipe) {
           const ingredient = seededIngredients.find(
             (i) => i.name === rItem.ingredientName
@@ -136,7 +120,6 @@ export async function seed() {
           }
         }
       }
-      console.log(`Created product: ${p.name}`);
     }
 
     console.log("Database seeded successfully");

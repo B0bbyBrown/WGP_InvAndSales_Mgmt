@@ -43,10 +43,10 @@ import {
   expenses,
   sessionInventorySnapshots,
 } from "@shared/schema";
-import { IStorage } from "./storage";
+import { IStorage, SafeUser } from "./storage";
 import { db, sqlite } from "./db";
 import { eq, and, desc, asc, sum, sql, isNull } from "drizzle-orm";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 // Utility functions for type conversion
 const toNum = (value: string | number | null): number => {
@@ -69,8 +69,18 @@ const todayRange = () => {
 
 export class SqliteStorage implements IStorage {
   // Users
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+  async getUser(id: string): Promise<SafeUser | undefined> {
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(eq(users.id, id));
     return user;
   }
 
@@ -79,32 +89,58 @@ export class SqliteStorage implements IStorage {
     return user;
   }
 
-  async loginUser(email: string, password: string): Promise<User | null> {
-    const user = await this.getUserByEmail(email);
-    if (!user) return null;
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) return null;
-    // Return user without password
-    const { password: _, ...safeUser } = user;
-    return safeUser as User;
+  async loginUser(email: string, password: string): Promise<SafeUser | null> {
+    try {
+      const user = await this.getUserByEmail(email);
+
+      if (!user) {
+        return null;
+      }
+
+      const passwordMatch = await bcrypt.compare(password, user.password);
+
+      if (!passwordMatch) {
+        return null;
+      }
+
+      const { password: _, ...safeUser } = user;
+      return safeUser;
+    } catch (err) {
+      console.error("Error during login:", err);
+      return null;
+    }
   }
 
-  async getUsers(): Promise<User[]> {
+  async getUsers(): Promise<SafeUser[]> {
     const allUsers = await db.query.users.findMany();
     return allUsers.map(({ password: _, ...safeUser }) => safeUser);
   }
 
-  async createUser(user: InsertUser): Promise<User> {
-    const [created] = await db.insert(users).values(user).returning();
+  async createUser(user: InsertUser): Promise<SafeUser> {
+    const [created] = await db.insert(users).values(user).returning({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    });
     return created;
   }
 
-  async updateUser(id: string, user: Partial<InsertUser>): Promise<User> {
+  async updateUser(id: string, user: Partial<InsertUser>): Promise<SafeUser> {
     const [updated] = await db
       .update(users)
       .set(user)
       .where(eq(users.id, id))
-      .returning();
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      });
     return updated;
   }
 
@@ -118,6 +154,14 @@ export class SqliteStorage implements IStorage {
       .select()
       .from(ingredients)
       .where(eq(ingredients.id, id));
+    return ingredient;
+  }
+
+  async getIngredientByName(name: string): Promise<Ingredient | undefined> {
+    const [ingredient] = await db
+      .select()
+      .from(ingredients)
+      .where(eq(ingredients.name, name));
     return ingredient;
   }
 
