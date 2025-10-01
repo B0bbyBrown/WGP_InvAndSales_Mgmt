@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { login } from "@/lib/api"; // Assume this is added as POST /api/auth/login
 import { useToast } from "@/hooks/use-toast";
 import { AuthContext } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { getActiveCashSession } from "@/lib/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -18,19 +20,24 @@ export default function Login() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useContext(AuthContext);
 
-  useEffect(() => {
-    if (loginSuccess && isAuthenticated) {
-      setLocation("/dashboard");
-    }
-  }, [loginSuccess, isAuthenticated, setLocation]);
-
   const loginMutation = useMutation({
     mutationFn: (data: { email: string; password: string }) => login(data),
     onSuccess: async (response) => {
       console.log("Login successful - setting user data");
       queryClient.setQueryData(["user"], response.user);
       console.log("User data set - redirecting to dashboard");
-      setLocation("/dashboard");
+
+      // Check for active session
+      const activeSession = await queryClient.fetchQuery({
+        queryKey: ["/api/sessions/active"],
+        queryFn: getActiveCashSession,
+      });
+
+      if (activeSession) {
+        setLocation("/dashboard");
+      } else {
+        setLocation("/sessions");
+      }
     },
     onError: (error) => {
       console.log("Login error:", error);

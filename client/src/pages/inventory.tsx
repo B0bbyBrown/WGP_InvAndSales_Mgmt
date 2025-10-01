@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,23 +27,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  Package, 
-  Plus, 
-  Minus, 
+import {
+  Package,
+  Plus,
+  Minus,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  Activity
+  Activity,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { 
-  getCurrentStock, 
-  getLowStock, 
+import {
+  getCurrentStock,
+  getLowStock,
   getStockMovements,
   adjustStock,
   getIngredients,
-  createIngredient
+  createIngredient,
 } from "@/lib/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -55,10 +55,12 @@ export default function Inventory() {
   const [adjustmentNote, setAdjustmentNote] = useState<string>("");
   const [newIngredientName, setNewIngredientName] = useState<string>("");
   const [newIngredientUnit, setNewIngredientUnit] = useState<string>("");
-  const [newIngredientLowStock, setNewIngredientLowStock] = useState<string>("");
+  const [newIngredientLowStock, setNewIngredientLowStock] =
+    useState<string>("");
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
-  const [isAddIngredientDialogOpen, setIsAddIngredientDialogOpen] = useState(false);
-  
+  const [isAddIngredientDialogOpen, setIsAddIngredientDialogOpen] =
+    useState(false);
+
   const { toast } = useToast();
 
   const { data: currentStock = [], isLoading: stockLoading } = useQuery({
@@ -158,7 +160,9 @@ export default function Inventory() {
     createIngredientMutation.mutate({
       name: newIngredientName,
       unit: newIngredientUnit,
-      low_stock_level: newIngredientLowStock ? parseFloat(newIngredientLowStock) : null,
+      low_stock_level: newIngredientLowStock
+        ? parseFloat(newIngredientLowStock)
+        : null,
     });
   };
 
@@ -177,14 +181,20 @@ export default function Inventory() {
   };
 
   return (
-    <Layout 
-      title="Inventory Management" 
+    <Layout
+      title="Inventory Management"
       description="Monitor and manage ingredient stock levels"
     >
       {/* Action Bar */}
-      <div className="flex items-center justify-between mb-6" data-testid="inventory-actions">
+      <div
+        className="flex items-center justify-between mb-6"
+        data-testid="inventory-actions"
+      >
         <div className="flex items-center space-x-4">
-          <Dialog open={isAdjustmentDialogOpen} onOpenChange={setIsAdjustmentDialogOpen}>
+          <Dialog
+            open={isAdjustmentDialogOpen}
+            onOpenChange={setIsAdjustmentDialogOpen}
+          >
             <DialogTrigger asChild>
               <Button data-testid="adjust-stock-button">
                 <Activity className="mr-2 h-4 w-4" />
@@ -194,12 +204,18 @@ export default function Inventory() {
             <DialogContent data-testid="adjustment-dialog">
               <DialogHeader>
                 <DialogTitle>Stock Adjustment</DialogTitle>
-                <DialogDescription>Adjust the stock level for an ingredient by adding or removing quantity.</DialogDescription>
+                <DialogDescription>
+                  Adjust the stock level for an ingredient by adding or removing
+                  quantity.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="ingredient">Ingredient</Label>
-                  <Select value={selectedIngredient} onValueChange={setSelectedIngredient}>
+                  <Select
+                    value={selectedIngredient}
+                    onValueChange={setSelectedIngredient}
+                  >
                     <SelectTrigger data-testid="ingredient-select">
                       <SelectValue placeholder="Select ingredient" />
                     </SelectTrigger>
@@ -213,7 +229,9 @@ export default function Inventory() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="quantity">Quantity (positive to add, negative to remove)</Label>
+                  <Label htmlFor="quantity">
+                    Quantity (positive to add, negative to remove)
+                  </Label>
                   <Input
                     id="quantity"
                     type="number"
@@ -234,75 +252,15 @@ export default function Inventory() {
                     data-testid="note-input"
                   />
                 </div>
-                <Button 
-                  onClick={handleStockAdjustment} 
+                <Button
+                  onClick={handleStockAdjustment}
                   disabled={adjustStockMutation.isPending}
                   className="w-full"
                   data-testid="confirm-adjustment-button"
                 >
-                  {adjustStockMutation.isPending ? "Adjusting..." : "Adjust Stock"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isAddIngredientDialogOpen} onOpenChange={setIsAddIngredientDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" data-testid="add-ingredient-button">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Ingredient
-              </Button>
-            </DialogTrigger>
-            <DialogContent data-testid="add-ingredient-dialog">
-              <DialogHeader>
-                <DialogTitle>Add New Ingredient</DialogTitle>
-                <DialogDescription>Enter the details for the new ingredient to track in inventory.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Ingredient Name</Label>
-                  <Input
-                    id="name"
-                    value={newIngredientName}
-                    onChange={(e) => setNewIngredientName(e.target.value)}
-                    placeholder="e.g. Flour"
-                    data-testid="ingredient-name-input"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="unit">Unit</Label>
-                  <Select value={newIngredientUnit} onValueChange={setNewIngredientUnit}>
-                    <SelectTrigger data-testid="unit-select">
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="g">Grams (g)</SelectItem>
-                      <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                      <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                      <SelectItem value="l">Liters (l)</SelectItem>
-                      <SelectItem value="unit">Units (unit)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="lowStock">Low Stock Level (optional)</Label>
-                  <Input
-                    id="lowStock"
-                    type="number"
-                    step="0.1"
-                    value={newIngredientLowStock}
-                    onChange={(e) => setNewIngredientLowStock(e.target.value)}
-                    placeholder="e.g. 10"
-                    data-testid="low-stock-input"
-                  />
-                </div>
-                <Button 
-                  onClick={handleCreateIngredient} 
-                  disabled={createIngredientMutation.isPending}
-                  className="w-full"
-                  data-testid="create-ingredient-button"
-                >
-                  {createIngredientMutation.isPending ? "Creating..." : "Create Ingredient"}
+                  {adjustStockMutation.isPending
+                    ? "Adjusting..."
+                    : "Adjust Stock"}
                 </Button>
               </div>
             </DialogContent>
@@ -312,7 +270,10 @@ export default function Inventory() {
 
       {/* Low Stock Alert */}
       {lowStockItems.length > 0 && (
-        <Card className="mb-6 border-destructive bg-destructive/5" data-testid="low-stock-alert">
+        <Card
+          className="mb-6 border-destructive bg-destructive/5"
+          data-testid="low-stock-alert"
+        >
           <CardHeader>
             <CardTitle className="flex items-center text-destructive">
               <AlertTriangle className="mr-2 h-5 w-5" />
@@ -325,20 +286,26 @@ export default function Inventory() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {lowStockItems.map((item: any) => (
-                <div 
+                <div
                   key={item.ingredientId}
                   className="p-3 border rounded-lg bg-card"
-                  data-testid={`low-stock-item-${item.ingredientName.toLowerCase().replace(/ /g, '-')}`}
+                  data-testid={`low-stock-item-${item.ingredientName
+                    .toLowerCase()
+                    .replace(/ /g, "-")}`}
                 >
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-medium">{item.ingredientName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {formatQuantity(item.totalQuantity, item.unit)} remaining
+                        {formatQuantity(item.totalQuantity, item.unit)}{" "}
+                        remaining
                       </p>
                     </div>
                     <Badge variant="destructive" className="text-xs">
-                      {parseFloat(item.totalQuantity) < parseFloat(item.lowStockLevel) / 2 ? "CRITICAL" : "LOW"}
+                      {parseFloat(item.totalQuantity) <
+                      parseFloat(item.lowStockLevel) / 2
+                        ? "CRITICAL"
+                        : "LOW"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
@@ -376,45 +343,72 @@ export default function Inventory() {
                 {currentStock.map((item: any) => {
                   const status = getStockStatus(item);
                   return (
-                    <TableRow key={item.ingredientId} data-testid={`stock-row-${item.ingredientName.toLowerCase().replace(/ /g, '-')}`}>
-                      <TableCell className="font-medium">{item.ingredientName}</TableCell>
+                    <TableRow
+                      key={item.ingredientId}
+                      data-testid={`stock-row-${item.ingredientName
+                        .toLowerCase()
+                        .replace(/ /g, "-")}`}
+                    >
+                      <TableCell className="font-medium">
+                        {item.ingredientName}
+                      </TableCell>
                       <TableCell>
                         {formatQuantity(item.totalQuantity, item.unit)}
                       </TableCell>
                       <TableCell>
-                        {item.lowStockLevel ? formatQuantity(item.lowStockLevel, item.unit) : "Not set"}
+                        {item.lowStockLevel
+                          ? formatQuantity(item.lowStockLevel, item.unit)
+                          : "Not set"}
                       </TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={status === "critical" ? "destructive" : status === "low" ? "secondary" : "default"}
-                          className={status === "low" ? "bg-yellow-100 text-yellow-800 border-yellow-300" : ""}
+                        <Badge
+                          variant={
+                            status === "critical"
+                              ? "destructive"
+                              : status === "low"
+                              ? "secondary"
+                              : "default"
+                          }
+                          className={
+                            status === "low"
+                              ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                              : ""
+                          }
                         >
-                          {status === "critical" ? "CRITICAL" : status === "low" ? "LOW" : "OK"}
+                          {status === "critical"
+                            ? "CRITICAL"
+                            : status === "low"
+                            ? "LOW"
+                            : "OK"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => {
                               setSelectedIngredient(item.ingredientId);
                               setAdjustmentQuantity("1");
                               setIsAdjustmentDialogOpen(true);
                             }}
-                            data-testid={`quick-add-${item.ingredientName.toLowerCase().replace(/ /g, '-')}`}
+                            data-testid={`quick-add-${item.ingredientName
+                              .toLowerCase()
+                              .replace(/ /g, "-")}`}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => {
                               setSelectedIngredient(item.ingredientId);
                               setAdjustmentQuantity("-1");
                               setIsAdjustmentDialogOpen(true);
                             }}
-                            data-testid={`quick-remove-${item.ingredientName.toLowerCase().replace(/ /g, '-')}`}
+                            data-testid={`quick-remove-${item.ingredientName
+                              .toLowerCase()
+                              .replace(/ /g, "-")}`}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
@@ -451,40 +445,59 @@ export default function Inventory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stockMovements.slice(0, 10).map((movement: any, index: number) => {
-                  const ingredient = ingredients.find((ing: any) => ing.id === movement.ingredientId);
-                  const quantity = parseFloat(movement.quantity);
-                  const isPositive = quantity > 0;
-                  
-                  return (
-                    <TableRow key={movement.id || index} data-testid={`movement-row-${index}`}>
-                      <TableCell>
-                        {new Date(movement.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          movement.kind === "PURCHASE" ? "default" :
-                          movement.kind === "SALE_CONSUME" ? "secondary" :
-                          movement.kind === "ADJUSTMENT" ? "outline" : "destructive"
-                        }>
-                          {movement.kind.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{ingredient?.name || "Unknown"}</TableCell>
-                      <TableCell className={isPositive ? "text-green-600" : "text-red-600"}>
-                        {isPositive ? "+" : ""}{quantity.toFixed(1)}{ingredient?.unit || ""}
-                        {isPositive ? (
-                          <TrendingUp className="inline h-3 w-3 ml-1" />
-                        ) : (
-                          <TrendingDown className="inline h-3 w-3 ml-1" />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {movement.note || "-"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {stockMovements
+                  .slice(0, 10)
+                  .map((movement: any, index: number) => {
+                    const ingredient = ingredients.find(
+                      (ing: any) => ing.id === movement.ingredientId
+                    );
+                    const quantity = parseFloat(movement.quantity);
+                    const isPositive = quantity > 0;
+
+                    return (
+                      <TableRow
+                        key={movement.id || index}
+                        data-testid={`movement-row-${index}`}
+                      >
+                        <TableCell>
+                          {new Date(movement.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              movement.kind === "PURCHASE"
+                                ? "default"
+                                : movement.kind === "SALE_CONSUME"
+                                ? "secondary"
+                                : movement.kind === "ADJUSTMENT"
+                                ? "outline"
+                                : "destructive"
+                            }
+                          >
+                            {movement.kind.replace("_", " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{ingredient?.name || "Unknown"}</TableCell>
+                        <TableCell
+                          className={
+                            isPositive ? "text-green-600" : "text-red-600"
+                          }
+                        >
+                          {isPositive ? "+" : ""}
+                          {quantity.toFixed(1)}
+                          {ingredient?.unit || ""}
+                          {isPositive ? (
+                            <TrendingUp className="inline h-3 w-3 ml-1" />
+                          ) : (
+                            <TrendingDown className="inline h-3 w-3 ml-1" />
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {movement.note || "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           )}

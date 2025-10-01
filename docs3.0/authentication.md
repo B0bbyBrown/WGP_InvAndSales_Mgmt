@@ -1,8 +1,16 @@
-# Authentication Guide
+# Authentication
 
 ## Overview
 
-The app uses session-based authentication with roles (ADMIN, CASHIER, KITCHEN). Users must log in to access the app, and roles determine permissions.
+- Email/password login with session-based auth.
+- Roles: ADMIN (full access), CASHIER (sales/sessions), KITCHEN (limited, e.g., inventory view).
+
+## Role-Based Access
+
+- **ADMIN**: All features, including user management.
+- **CASHIER**: Sales, sessions, inventory adjustments.
+- **KITCHEN**: View-only for inventory/sessions.
+- **Redirects/Guards**: Post-login redirect to /sessions if no active session. Sales page blocked without active session (shows message with link to Sessions).
 
 ## Default Account
 

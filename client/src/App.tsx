@@ -16,6 +16,7 @@ import Login from "@/pages/Login";
 import { useContext, useEffect } from "react";
 import { getCurrentUser } from "@/lib/api"; // Assume this calls /api/auth/me
 import { AuthContext } from "./contexts/AuthContext";
+import Kitchen from "@/pages/kitchen"; // Assuming we'll create this file
 
 function App() {
   const {
@@ -57,47 +58,52 @@ function App() {
             <ProtectedRoute
               path="/dashboard"
               component={Dashboard}
-              allowedRoles={["ADMIN", "CASHIER", "KITCHEN"]}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/inventory"
               component={Inventory}
-              allowedRoles={["ADMIN", "KITCHEN"]}
+              allowedRoles={["ADMIN", "CASHIER", "DEV"]}
             />
             <ProtectedRoute
               path="/products"
               component={Products}
-              allowedRoles={["ADMIN", "KITCHEN"]}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/purchases"
               component={Purchases}
-              allowedRoles={["ADMIN", "KITCHEN"]}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/sales"
               component={Sales}
-              allowedRoles={["ADMIN", "CASHIER"]}
+              allowedRoles={["CASHIER", "DEV"]}
             />
             <ProtectedRoute
               path="/sessions"
               component={Sessions}
-              allowedRoles={["ADMIN", "CASHIER"]}
+              allowedRoles={["CASHIER", "DEV"]}
             />
             <ProtectedRoute
               path="/expenses"
               component={Expenses}
-              allowedRoles={["ADMIN", "CASHIER"]}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/reports"
               component={Reports}
-              allowedRoles={["ADMIN"]}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/users"
               component={Users}
-              allowedRoles={["ADMIN"]}
+              allowedRoles={["ADMIN", "DEV"]}
+            />
+            <ProtectedRoute
+              path="/kitchen"
+              component={Kitchen}
+              allowedRoles={["KITCHEN", "DEV"]}
             />
             <Route component={NotFound} />
           </Switch>

@@ -1,6 +1,12 @@
 import { createInsertSchema } from "drizzle-zod";
 import { sql } from "drizzle-orm";
-import { text, integer, real, sqliteTable } from "drizzle-orm/sqlite-core";
+import {
+  check,
+  text,
+  integer,
+  real,
+  sqliteTable,
+} from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 import crypto from "crypto";
 
@@ -124,20 +130,30 @@ export const sales = sqliteTable("sales", {
 });
 
 // Sale items table
-export const saleItems = sqliteTable("sale_items", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  saleId: text("sale_id")
-    .references(() => sales.id)
-    .notNull(),
-  productId: text("product_id")
-    .references(() => products.id)
-    .notNull(),
-  qty: integer("qty").notNull(),
-  unitPrice: real("unit_price").notNull(),
-  lineTotal: real("line_total").notNull(),
-});
+export const saleItems = sqliteTable(
+  "sale_items",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    saleId: text("sale_id")
+      .references(() => sales.id)
+      .notNull(),
+    productId: text("product_id")
+      .references(() => products.id)
+      .notNull(),
+    qty: integer("qty").notNull(),
+    unitPrice: real("unit_price").notNull(),
+    lineTotal: real("line_total").notNull(),
+    status: text("status").notNull().default("PENDING"),
+  },
+  (t) => ({
+    statusCheck: check(
+      "status_check",
+      sql`${t.status} IN ('PENDING', 'RECEIVED', 'PREPPING', 'DONE')`
+    ),
+  })
+);
 
 // Purchases table
 export const purchases = sqliteTable("purchases", {

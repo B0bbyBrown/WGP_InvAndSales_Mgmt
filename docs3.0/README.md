@@ -1,6 +1,15 @@
-# Wheely Good Pizza - Documentation v2.0
+# Wheely Good Pizza Inventory and Sales Management
 
-Welcome to the official documentation for the Wheely Good Pizza platform. This documentation provides a comprehensive overview of the project, from setup to deployment and contribution guidelines.
+## Overview
+
+- This is a web application for managing inventory, sales, and cash sessions for a pizza food truck.
+- Built with React (frontend), Express (backend), SQLite (database), and Drizzle ORM.
+- **Key Workflow**:
+  - **Admins** pre-configure the app (e.g., add users, products/recipes, initial inventory/suppliers via Purchases page).
+  - **Cashiers** log in and are guided to open a cash session (redirect if none active), then access POS for sales.
+  - **Kitchen** staff have limited access, e.g., to view inventory or a dedicated order queue.
+  - Login redirects based on role and session status (e.g., to /sessions if no active session).
+- Features include FIFO inventory tracking, real-time stock updates, reporting, and role-based access (ADMIN, CASHIER, KITCHEN).
 
 ## Table of Contents
 

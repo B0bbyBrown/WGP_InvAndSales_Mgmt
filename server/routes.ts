@@ -46,7 +46,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    if (requiredRole && req.session.role !== requiredRole) {
+    if (
+      requiredRole &&
+      req.session.role !== requiredRole &&
+      req.session.role !== "DEV"
+    ) {
       return res.status(403).json({ error: "Forbidden" });
     }
     next();

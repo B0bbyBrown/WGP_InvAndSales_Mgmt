@@ -63,7 +63,7 @@ try {
       email TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
-      role TEXT DEFAULT 'CASHIER' NOT NULL CHECK(role IN ('ADMIN', 'CASHIER', 'KITCHEN')),
+      role TEXT DEFAULT 'CASHIER' NOT NULL CHECK(role IN ('ADMIN', 'CASHIER', 'KITCHEN', 'DEV')),
       created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
       updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
     );

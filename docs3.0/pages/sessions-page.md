@@ -1,6 +1,14 @@
-# Sessions Page (`/sessions`) Data Flow Analysis
+# Sessions Page
 
-This document outlines the data flow for the Sessions page, which manages the lifecycle of a business period (e.g., a day's shift), including cash management and the movement of on-site inventory.
+## Overview
+
+- Manage cash sessions (open/close) for daily operations.
+
+## Key Features
+
+- Open session: Enter opening float, snapshot inventory.
+- Close session: Enter closing float, notes, final snapshot.
+- **Note**: After login, users are redirected here if no active session exists—ensures daily setup before accessing Sales/POS.
 
 ---
 

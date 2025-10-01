@@ -31,8 +31,19 @@ export const createIngredient = (data: any) =>
 
 // Suppliers
 export const getSuppliers = () => apiRequest("GET", "/api/suppliers");
-export const createSupplier = (data: any) =>
-  apiRequest("POST", "/api/suppliers", data);
+export const createSupplier = async (data: {
+  name: string;
+  phone?: string;
+  email?: string;
+}) => {
+  const response = await fetch("/api/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to create supplier");
+  return response.json();
+};
 
 // Products
 export const getProducts = () => apiRequest("GET", "/api/products");

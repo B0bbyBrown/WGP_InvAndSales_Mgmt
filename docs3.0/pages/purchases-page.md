@@ -1,6 +1,15 @@
-# Purchases Page (`/purchases`) Data Flow Analysis
+# Purchases Page
 
-This document outlines the data flow for the Purchases page, which is the primary interface for recording the acquisition of new ingredients and replenishing the main stock.
+## Overview
+
+- Create and view purchase orders to stock inventory.
+- Integrates with suppliers and ingredients.
+
+## Key Features
+
+- Create new purchase: Select supplier, add items (ingredient, quantity, cost).
+- **New**: Add new suppliers or ingredients on-the-fly from the dropdowns (select 'Add New' to open creation dialog).
+- View history of purchases.
 
 ---
 

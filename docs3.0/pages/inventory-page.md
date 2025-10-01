@@ -1,6 +1,15 @@
-# Inventory Page (`/inventory`) Data Flow Analysis
+# Inventory Page
 
-This document breaks down how the UI components on the inventory page connect to the backend data endpoints.
+## Overview
+
+- View current stock levels, low stock alerts, and recent movements.
+- Adjust stock manually.
+
+## Key Features
+
+- Stock table with status (OK/LOW/CRITICAL).
+- Adjustment dialog for adding/removing quantity.
+- **Note**: New ingredients are added via the Purchases page (not here) to tie them to stock intake.
 
 ---
 

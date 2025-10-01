@@ -40,6 +40,8 @@ import {
   createPurchase,
   getIngredients,
   getSuppliers,
+  createIngredient,
+  createSupplier,
 } from "@/lib/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +56,11 @@ interface PurchaseItem {
 
 export default function Purchases() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isAddIngredientDialogOpen, setIsAddIngredientDialogOpen] =
+    useState(false);
+  const [newIngredientName, setNewIngredientName] = useState("");
+  const [newIngredientUnit, setNewIngredientUnit] = useState("");
+  const [newIngredientLowStock, setNewIngredientLowStock] = useState("");
 
   // Form state
   const [selectedSupplier, setSelectedSupplier] = useState("");
@@ -61,6 +68,12 @@ export default function Purchases() {
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([
     { ingredientId: "", quantity: "", totalCost: "" },
   ]);
+
+  // New Supplier Form State
+  const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierPhone, setNewSupplierPhone] = useState("");
+  const [newSupplierEmail, setNewSupplierEmail] = useState("");
 
   const { toast } = useToast();
 
@@ -101,6 +114,51 @@ export default function Purchases() {
     },
   });
 
+  const createIngredientMutation = useMutation({
+    mutationFn: createIngredient,
+    onSuccess: (newIngredient) => {
+      toast({
+        title: "Success",
+        description: "Ingredient created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/ingredients"] });
+      setIsAddIngredientDialogOpen(false);
+      setNewIngredientName("");
+      setNewIngredientUnit("");
+      setNewIngredientLowStock("");
+      // Optionally, auto-select the new ingredient in the current item
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create ingredient",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createSupplierMutation = useMutation({
+    mutationFn: createSupplier,
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Supplier created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/suppliers"] });
+      setIsAddSupplierDialogOpen(false);
+      setNewSupplierName("");
+      setNewSupplierPhone("");
+      setNewSupplierEmail("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create supplier",
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetForm = () => {
     setSelectedSupplier("");
     setNotes("");
@@ -125,6 +183,40 @@ export default function Purchases() {
       supplierId: selectedSupplier || undefined,
       notes: notes || undefined,
       items: validItems,
+    });
+  };
+
+  const handleCreateIngredient = () => {
+    if (!newIngredientName || !newIngredientUnit) {
+      toast({
+        title: "Error",
+        description: "Please enter ingredient name and unit",
+        variant: "destructive",
+      });
+      return;
+    }
+    createIngredientMutation.mutate({
+      name: newIngredientName,
+      unit: newIngredientUnit,
+      low_stock_level: newIngredientLowStock
+        ? parseFloat(newIngredientLowStock)
+        : null,
+    });
+  };
+
+  const handleCreateSupplier = () => {
+    if (!newSupplierName) {
+      toast({
+        title: "Error",
+        description: "Please enter supplier name",
+        variant: "destructive",
+      });
+      return;
+    }
+    createSupplierMutation.mutate({
+      name: newSupplierName,
+      phone: newSupplierPhone || undefined,
+      email: newSupplierEmail || undefined,
     });
   };
 
@@ -195,12 +287,19 @@ export default function Purchases() {
                   <Label htmlFor="supplier">Supplier (optional)</Label>
                   <Select
                     value={selectedSupplier}
-                    onValueChange={setSelectedSupplier}
+                    onValueChange={(value) => {
+                      if (value === "add-new") {
+                        setIsAddSupplierDialogOpen(true);
+                      } else {
+                        setSelectedSupplier(value);
+                      }
+                    }}
                   >
                     <SelectTrigger data-testid="supplier-select">
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="add-new">Add New Supplier</SelectItem>
                       {suppliers.map((supplier: any) => (
                         <SelectItem key={supplier.id} value={supplier.id}>
                           {supplier.name}
@@ -246,9 +345,17 @@ export default function Purchases() {
                           <Label>Ingredient</Label>
                           <Select
                             value={item.ingredientId}
-                            onValueChange={(value) =>
-                              updatePurchaseItem(index, "ingredientId", value)
-                            }
+                            onValueChange={(value) => {
+                              if (value === "add-new") {
+                                setIsAddIngredientDialogOpen(true);
+                              } else {
+                                updatePurchaseItem(
+                                  index,
+                                  "ingredientId",
+                                  value
+                                );
+                              }
+                            }}
                           >
                             <SelectTrigger
                               data-testid={`ingredient-select-${index}`}
@@ -256,6 +363,14 @@ export default function Purchases() {
                               <SelectValue placeholder="Select ingredient" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem
+                                value="add-new"
+                                onSelect={() =>
+                                  setIsAddIngredientDialogOpen(true)
+                                }
+                              >
+                                Add New Ingredient
+                              </SelectItem>
                               {ingredients.map((ingredient: any) => (
                                 <SelectItem
                                   key={ingredient.id}
@@ -358,6 +473,125 @@ export default function Purchases() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Add New Ingredient Dialog */}
+      <Dialog
+        open={isAddIngredientDialogOpen}
+        onOpenChange={setIsAddIngredientDialogOpen}
+      >
+        <DialogContent data-testid="add-ingredient-dialog">
+          <DialogHeader>
+            <DialogTitle>Add New Ingredient</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Ingredient Name</Label>
+              <Input
+                id="name"
+                value={newIngredientName}
+                onChange={(e) => setNewIngredientName(e.target.value)}
+                placeholder="e.g. Flour"
+                data-testid="ingredient-name-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="unit">Unit</Label>
+              <Select
+                value={newIngredientUnit}
+                onValueChange={setNewIngredientUnit}
+              >
+                <SelectTrigger data-testid="unit-select">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="g">Grams (g)</SelectItem>
+                  <SelectItem value="kg">Kilograms (kg)</SelectItem>
+                  <SelectItem value="ml">Milliliters (ml)</SelectItem>
+                  <SelectItem value="l">Liters (l)</SelectItem>
+                  <SelectItem value="unit">Units (unit)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="lowStock">Low Stock Level (optional)</Label>
+              <Input
+                id="lowStock"
+                type="number"
+                step="0.1"
+                value={newIngredientLowStock}
+                onChange={(e) => setNewIngredientLowStock(e.target.value)}
+                placeholder="e.g. 10"
+                data-testid="low-stock-input"
+              />
+            </div>
+            <Button
+              onClick={handleCreateIngredient}
+              disabled={createIngredientMutation.isPending}
+              className="w-full"
+              data-testid="create-ingredient-button"
+            >
+              {createIngredientMutation.isPending
+                ? "Creating..."
+                : "Create Ingredient"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New Supplier Dialog */}
+      <Dialog
+        open={isAddSupplierDialogOpen}
+        onOpenChange={setIsAddSupplierDialogOpen}
+      >
+        <DialogContent data-testid="add-supplier-dialog">
+          <DialogHeader>
+            <DialogTitle>Add New Supplier</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="supplierName">Supplier Name</Label>
+              <Input
+                id="supplierName"
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                placeholder="e.g. Spar"
+                data-testid="supplier-name-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="supplierPhone">Phone (optional)</Label>
+              <Input
+                id="supplierPhone"
+                value={newSupplierPhone}
+                onChange={(e) => setNewSupplierPhone(e.target.value)}
+                placeholder="e.g. 123-456-7890"
+                data-testid="supplier-phone-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="supplierEmail">Email (optional)</Label>
+              <Input
+                id="supplierEmail"
+                type="email"
+                value={newSupplierEmail}
+                onChange={(e) => setNewSupplierEmail(e.target.value)}
+                placeholder="e.g. info@spar.com"
+                data-testid="supplier-email-input"
+              />
+            </div>
+            <Button
+              onClick={handleCreateSupplier}
+              disabled={createSupplierMutation.isPending}
+              className="w-full"
+              data-testid="create-supplier-button"
+            >
+              {createSupplierMutation.isPending
+                ? "Creating..."
+                : "Create Supplier"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Purchase History */}
       <Card data-testid="purchases-history-card">

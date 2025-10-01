@@ -41,6 +41,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useLocation } from "wouter";
 
 interface SaleItem {
   productId: string;
@@ -52,6 +53,7 @@ interface SaleItem {
 }
 
 export default function Sales() {
+  const [, setLocation] = useLocation(); // Use setLocation for navigation
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [paymentType, setPaymentType] = useState<"CASH" | "CARD" | "OTHER">(
@@ -61,14 +63,14 @@ export default function Sales() {
 
   const { toast } = useToast();
 
-  const { data: products = [] } = useQuery({
+  const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ["/api/products"],
     queryFn: () => getProducts(),
   });
 
-  const { data: activeSession } = useQuery({
+  const { data: activeSession, isLoading: sessionLoading } = useQuery({
     queryKey: ["/api/sessions/active"],
-    queryFn: () => getActiveCashSession(),
+    queryFn: getActiveCashSession,
   });
 
   const { data: recentSales = [], isLoading: salesLoading } = useQuery({
@@ -101,6 +103,26 @@ export default function Sales() {
       });
     },
   });
+
+  if (sessionLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!activeSession) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>No Active Cash Session</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>Please open a cash session before making sales.</p>
+          <Button onClick={() => setLocation("/sessions")}>
+            Go to Sessions
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const filteredProducts = products.filter(
     (product: any) =>
