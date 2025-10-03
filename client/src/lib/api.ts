@@ -128,3 +128,6 @@ export const getTopProducts = (from?: string, to?: string) => {
 };
 export const getRecentActivity = (limit: number = 10) =>
   apiRequest("GET", `/api/reports/activity?limit=${limit}`);
+export const getPendingOrders = () => apiRequest("GET", "/api/kitchen/orders");
+export const updateSaleItemStatus = (id: string, status: string) =>
+  apiRequest("PATCH", `/api/sale-items/${id}/status`, { status });

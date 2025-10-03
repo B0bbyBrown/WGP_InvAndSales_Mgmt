@@ -45,7 +45,7 @@ import {
 } from "@shared/schema";
 import { IStorage, SafeUser } from "./storage";
 import { db, sqlite } from "./db";
-import { eq, and, desc, asc, sum, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sum, sql, isNull, inArray, ne } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Utility functions for type conversion
@@ -1017,5 +1017,41 @@ export class SqliteStorage implements IStorage {
       ...item,
       amount: toStr(item.amount),
     }));
+  }
+  async getPendingOrders(): Promise<
+    { sale: Sale; items: (SaleItem & { productName: string })[] }[]
+  > {
+    const pendingItems = await db
+      .select({
+        ...saleItems,
+        productName: products.name,
+      })
+      .from(saleItems)
+      .innerJoin(products, eq(saleItems.productId, products.id))
+      .where(ne(saleItems.status, "DONE"));
+    const saleIds = [...new Set(pendingItems.map((i) => i.saleId))];
+    const pendingSales = await db
+      .select()
+      .from(sales)
+      .where(inArray(sales.id, saleIds));
+    return pendingSales.map((s) => ({
+      sale: s,
+      items: pendingItems.filter((i) => i.saleId === s.id),
+    }));
+  }
+  async updateSaleItemStatus(id: string, status: string): Promise<SaleItem> {
+    const validStatuses = ["PENDING", "RECEIVED", "PREPPING", "DONE"];
+    if (!validStatuses.includes(status)) {
+      throw new Error("Invalid status");
+    }
+    const [updated] = await db
+      .update(saleItems)
+      .set({ status })
+      .where(eq(saleItems.id, id))
+      .returning();
+    if (!updated) {
+      throw new Error("Sale item not found");
+    }
+    return updated;
   }
 }

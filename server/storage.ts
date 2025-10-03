@@ -164,6 +164,10 @@ export interface IStorage {
     }[]
   >;
   getRecentActivity(limit: number): Promise<any[]>;
+  getPendingOrders(): Promise<
+    { sale: Sale; items: (SaleItem & { productName: string })[] }[]
+  >;
+  updateSaleItemStatus(id: string, status: string): Promise<SaleItem>;
 }
 
 import { SqliteStorage } from "./sqlite-storage";

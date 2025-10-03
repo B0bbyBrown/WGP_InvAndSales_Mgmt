@@ -315,7 +315,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch sale items" });
     }
   });
-
+  // Kitchen
+  app.get(
+    "/api/kitchen/orders",
+    authMiddleware("KITCHEN"),
+    async (req, res) => {
+      try {
+        const orders = await storage.getPendingOrders();
+        res.json(orders);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch pending orders" });
+      }
+    }
+  );
+  app.patch(
+    "/api/sale-items/:id/status",
+    authMiddleware("KITCHEN"),
+    async (req, res) => {
+      try {
+        const { status } = req.body;
+        if (!status) {
+          return res.status(400).json({ error: "Status is required" });
+        }
+        const updated = await storage.updateSaleItemStatus(
+          req.params.id,
+          status
+        );
+        res.json(updated);
+      } catch (error: any) {
+        res
+          .status(400)
+          .json({ error: error.message || "Failed to update status" });
+      }
+    }
+  );
   // Cash sessions
   app.get("/api/sessions", async (req, res) => {
     try {
