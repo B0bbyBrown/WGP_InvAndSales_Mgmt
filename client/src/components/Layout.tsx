@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Plus,
   ScanBarcode,
+  HelpCircle,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,12 @@ import { getActiveCashSession, getLowStock } from "@/lib/api";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { apiRequest } from "../lib/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../components/ui/tooltip";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -93,6 +100,12 @@ export default function Layout({ children, title, description }: LayoutProps) {
       href: "/reports",
       icon: BarChart3,
       active: location === "/reports",
+    },
+    {
+      name: "Help & Tasks",
+      href: "/help",
+      icon: Bell,
+      active: location === "/help",
     },
   ];
 
@@ -284,6 +297,22 @@ export default function Layout({ children, title, description }: LayoutProps) {
                       Users
                     </Link>
                   )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setLocation("/help")}
+                        >
+                          <HelpCircle className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Help & Tasks – Search for guidance</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <Button
                     variant="default"
                     size="sm"
