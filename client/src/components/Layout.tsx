@@ -28,6 +28,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../components/ui/dialog";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -289,6 +297,28 @@ export default function Layout({ children, title, description }: LayoutProps) {
                 <option>This Week</option>
                 <option>This Month</option>
               </select>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon" data-testid="help-button">
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Help & Support</DialogTitle>
+                    <DialogDescription>
+                      Here you can find information about how to use the Pizza
+                      Truck Ops application.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-4">
+                    <p>
+                      This is a placeholder for the help content. You can add
+                      FAQs, tutorials, or contact information here.
+                    </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Button variant="default" size="sm" data-testid="refresh-button">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
