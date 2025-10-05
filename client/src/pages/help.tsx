@@ -54,17 +54,157 @@ const tasks = [
     logic: "Deducts stock via recipe_items and FIFO, updates sales table.",
     screenshot: "/assets/help/process-sale.png",
   },
+  {
+    id: "add-expense",
+    title: "Add an Expense",
+    description: "Record non-ingredient costs like utilities or maintenance.",
+    roles: ["ADMIN"],
+    redirect: "/expenses",
+    steps: [
+      "Go to Expenses page.",
+      "Click 'Add Expense'.",
+      "Enter description, amount, category, and date.",
+      "Save – it updates financial reports.",
+    ],
+    logic:
+      "Inserts into expenses table; affects profit calculations in reports.",
+    screenshot: "/assets/help/add-expense.png",
+  },
+  {
+    id: "manage-users",
+    title: "Manage Users",
+    description: "Add, edit, or remove team members.",
+    roles: ["ADMIN"],
+    redirect: "/users",
+    steps: [
+      "Go to Users page.",
+      "To add: Fill form with email, password, name, role.",
+      "To edit/delete: Use icons next to existing users.",
+      "Save changes.",
+    ],
+    logic:
+      "Modifies users table with role-based access; uses secure password hashing.",
+    screenshot: "/assets/help/manage-users.png",
+  },
+  {
+    id: "open-close-session",
+    title: "Open or Close a Session",
+    description: "Start/end a shift with cash and inventory tracking.",
+    roles: ["ADMIN", "CASHIER"],
+    redirect: "/sessions",
+    steps: [
+      "Go to Sessions page.",
+      "To open: Enter starting cash and note inventory.",
+      "To close: Enter ending cash, reconcile, and save.",
+      "Required before sales.",
+    ],
+    logic:
+      "Creates/updates sessions table; enables sales and tracks discrepancies.",
+    screenshot: "/assets/help/open-close-session.png",
+  },
+  {
+    id: "prep-kitchen-order",
+    title: "Prep a Kitchen Order",
+    description: "Update order statuses during preparation.",
+    roles: ["KITCHEN"],
+    redirect: "/kitchen",
+    steps: [
+      "Go to Kitchen page.",
+      "View pending orders.",
+      "Update status (e.g., from 'Pending' to 'Prepping' to 'Done').",
+      "Save – deducts inventory automatically.",
+    ],
+    logic:
+      "Updates order statuses linked to sales; consumes inventory via recipe_items and FIFO.",
+    screenshot: "/assets/help/prep-kitchen-order.png",
+  },
+  {
+    id: "update-inventory",
+    title: "Update Inventory",
+    description: "Adjust stock levels for ingredients.",
+    roles: ["ADMIN", "CASHIER", "KITCHEN"],
+    redirect: "/inventory",
+    steps: [
+      "Go to Inventory page.",
+      "Select an ingredient.",
+      "Adjust quantity (e.g., for wastage or manual update).",
+      "Save – logs the movement.",
+    ],
+    logic:
+      "Modifies inventory_lots with FIFO tracking; logs in stock_movements for audit.",
+    screenshot: "/assets/help/update-inventory.png",
+  },
+  {
+    id: "view-reports",
+    title: "View Reports",
+    description: "Generate summaries of sales, profits, and expenses.",
+    roles: ["ADMIN"],
+    redirect: "/reports",
+    steps: [
+      "Go to Reports page.",
+      "Select report type (e.g., sales by date).",
+      "Apply filters if needed.",
+      "View charts and data.",
+    ],
+    logic:
+      "Queries multiple tables (sales, expenses, etc.) for aggregated insights.",
+    screenshot: "/assets/help/view-reports.png",
+  },
 ];
+
+// Nested grouping: role -> route -> task IDs
+const roleGroups = {
+  ADMIN: {
+    "/inventory": ["change-ingredient", "update-inventory"],
+    "/products": ["add-product"],
+    "/expenses": ["add-expense"],
+    "/users": ["manage-users"],
+    "/reports": ["view-reports"],
+    "/sessions": ["open-close-session"],
+    "/sales": ["process-sale"],
+  },
+  CASHIER: {
+    "/sessions": ["open-close-session"],
+    "/sales": ["process-sale"],
+    "/inventory": ["update-inventory"],
+  },
+  KITCHEN: {
+    "/kitchen": ["prep-kitchen-order"],
+    "/inventory": ["update-inventory"],
+  },
+};
 
 export default function Help() {
   const { user } = useContext(AuthContext);
   const [search, setSearch] = useState("");
   const [, setLocation] = useLocation(); // wouter's navigation
 
-  const filteredTasks = tasks.filter(
-    (task) =>
-      task.title.toLowerCase().includes(search.toLowerCase()) &&
-      task.roles.includes(user?.role)
+  // In the component, create filtered groups
+  const filteredRoleGroups = Object.entries(roleGroups).reduce(
+    (acc, [roleName, routeMap]) => {
+      if (!user || roleName !== user.role) return acc; // Only show the current user's role group
+
+      const filteredRoutes = Object.entries(routeMap).reduce(
+        (routeAcc, [route, taskIds]) => {
+          const routeTasks = tasks.filter(
+            (task) =>
+              taskIds.includes(task.id) &&
+              task.title.toLowerCase().includes(search.toLowerCase())
+          );
+          if (routeTasks.length > 0) {
+            routeAcc[route] = routeTasks;
+          }
+          return routeAcc;
+        },
+        {}
+      );
+
+      if (Object.keys(filteredRoutes).length > 0) {
+        acc[roleName] = filteredRoutes;
+      }
+      return acc;
+    },
+    {}
   );
 
   const handleTaskClick = (redirect) => {
@@ -80,22 +220,39 @@ export default function Help() {
         onChange={(e) => setSearch(e.target.value)}
         className="mb-4"
       />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredTasks.map((task) => (
-          <Card key={task.id} className="p-4">
-            <h2 className="text-xl font-semibold">{task.title}</h2>
-            <p>{task.description}</p>
-            <Button
-              onClick={() => handleTaskClick(task.redirect)}
-              className="mt-2"
-            >
-              Go to Task
-            </Button>
-            {/* Add modal trigger here for steps/logic/screenshot */}
-          </Card>
-        ))}
-      </div>
-      {filteredTasks.length === 0 && <p>No tasks match your search or role.</p>}
+      {Object.entries(filteredRoleGroups).length > 0 ? (
+        Object.entries(filteredRoleGroups).map(([roleName, routeMap]) => (
+          <div key={roleName} className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">{roleName} Tasks</h2>
+            {Object.entries(routeMap).map(([route, routeTasks]) => (
+              <div key={route} className="mb-6">
+                <h3 className="text-xl font-semibold mb-2">
+                  {route.replace("/", "").charAt(0).toUpperCase() +
+                    route.replace("/", "").slice(1)}{" "}
+                  Page
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {routeTasks.map((task) => (
+                    <Card key={task.id} className="p-4">
+                      <h4 className="text-lg font-semibold">{task.title}</h4>
+                      <p>{task.description}</p>
+                      <Button
+                        onClick={() => handleTaskClick(task.redirect)}
+                        className="mt-2"
+                      >
+                        Go to Task
+                      </Button>
+                      {/* Add modal trigger here for steps/logic/screenshot */}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))
+      ) : (
+        <p>No tasks match your search or role.</p>
+      )}
     </div>
   );
 }

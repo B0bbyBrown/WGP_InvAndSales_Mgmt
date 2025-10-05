@@ -100,7 +100,11 @@ function App() {
               component={Kitchen}
               allowedRoles={["KITCHEN", "DEV"]}
             />
-            <Route path="/help" element={<Help />} />
+            <ProtectedRoute
+              path="/help"
+              component={Help}
+              allowedRoles={["ADMIN", "CASHIER", "KITCHEN", "DEV"]}
+            />
             <Route component={NotFound} />
           </Switch>
         </Router>
