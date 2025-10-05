@@ -174,9 +174,7 @@ export class SqliteStorage implements IStorage {
           type: item.type,
           unit: item.unit,
           price: item.price ? toNum(item.price) : null,
-          lowStockLevel: item.lowStockLevel
-            ? toNum(item.lowStockLevel)
-            : null,
+          lowStockLevel: item.lowStockLevel ? toNum(item.lowStockLevel) : null,
         })
         .returning()
         .get();
@@ -240,6 +238,14 @@ export class SqliteStorage implements IStorage {
   async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
     const [created] = await db.insert(suppliers).values(supplier).returning();
     return created;
+  }
+
+  async getSupplierByName(name: string): Promise<Supplier | undefined> {
+    const [supplier] = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.name, name));
+    return supplier;
   }
 
   // Recipe Items
@@ -441,10 +447,7 @@ export class SqliteStorage implements IStorage {
           .orderBy(asc(inventoryLots.purchasedAt))
           .all();
 
-        const totalAvailable = lots.reduce(
-          (sum, lot) => sum + lot.quantity,
-          0
-        );
+        const totalAvailable = lots.reduce((sum, lot) => sum + lot.quantity, 0);
         const requiredQty = Math.abs(quantity);
 
         if (totalAvailable < requiredQty) {
@@ -637,7 +640,10 @@ export class SqliteStorage implements IStorage {
   }
 
   async getSaleItems(saleId: string): Promise<SaleItem[]> {
-    return await db.select().from(saleItems).where(eq(saleItems.saleId, saleId));
+    return await db
+      .select()
+      .from(saleItems)
+      .where(eq(saleItems.saleId, saleId));
   }
 
   // Cash Sessions (methods using 'itemId' need to be checked)
@@ -889,7 +895,7 @@ export class SqliteStorage implements IStorage {
     orderCount: number;
   }> {
     const { start, end } = todayRange();
-    
+
     const result = await db
       .select({
         revenue: sum(sales.total),

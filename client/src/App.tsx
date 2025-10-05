@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
-import Items from "@/pages/items";
 import Purchases from "@/pages/purchases";
 import Sales from "@/pages/sales";
 import Sessions from "@/pages/sessions";
@@ -17,6 +16,7 @@ import { getCurrentUser } from "@/lib/api"; // Assume this calls /api/auth/me
 import { AuthContext } from "./contexts/AuthContext";
 import Kitchen from "@/pages/kitchen"; // Assuming we'll create this file
 import Help from "./pages/help.tsx";
+import RawMaterials from "@/pages/raw-materials";
 
 function App() {
   const {
@@ -58,12 +58,7 @@ function App() {
             <ProtectedRoute
               path="/dashboard"
               component={Dashboard}
-              allowedRoles={["ADMIN", "CASHIER", "KITCHEN", "DEV"]}
-            />
-            <ProtectedRoute
-              path="/items"
-              component={Items}
-              allowedRoles={["ADMIN", "DEV"]}
+              allowedRoles={["ADMIN", "CASHIER", "DEV"]}
             />
             <ProtectedRoute
               path="/purchases"
@@ -99,6 +94,11 @@ function App() {
               path="/kitchen"
               component={Kitchen}
               allowedRoles={["KITCHEN", "DEV"]}
+            />
+            <ProtectedRoute
+              path="/raw-materials"
+              component={RawMaterials}
+              allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
               path="/help"

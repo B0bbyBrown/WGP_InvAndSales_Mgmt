@@ -35,8 +35,9 @@ import {
   createSale,
   getSales,
   getActiveCashSession,
+  getRawMaterials,
 } from "@/lib/api";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -61,25 +62,35 @@ export default function Sales() {
 
   const { toast } = useToast();
 
-  const { data: allItems = [], isLoading: itemsLoading } = useQuery({
-    queryKey: ["/api/items"],
-    queryFn: getItems,
+  const { data: products = [] } = useQuery({
+    queryKey: ["/api/raw-materials"],
+    queryFn: getRawMaterials,
   });
-  const sellableItems = allItems.filter((item) => item.type === "SELLABLE");
+  const sellableItems = products.filter((item) => item.type === "SELLABLE");
 
   const { data: activeSession, isLoading: sessionLoading } = useQuery({
     queryKey: ["/api/sessions/active"],
     queryFn: getActiveCashSession,
+    staleTime: 0, // Force refetch
   });
+
+  // Log active session for debugging
+  useEffect(() => {
+    if (!sessionLoading) {
+      console.log("Point of Sale - Active Session:", activeSession);
+    }
+  }, [activeSession, sessionLoading]);
 
   const { data: recentSales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["/api/sales"],
     queryFn: () => getSales(),
+    staleTime: 0, // Force refetch after invalidation
   });
 
   const createSaleMutation = useMutation({
     mutationFn: createSale,
-    onSuccess: (sale) => {
+    onSuccess: async (sale) => {
+      // Make async
       toast({
         title: "Sale Completed",
         description: `Sale total: ${formatCurrency(
@@ -88,11 +99,13 @@ export default function Sales() {
           sale.cogs
         )} | Margin: ${calculateMarginPercent(sale.total, sale.cogs)}%`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stock/current"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/reports/overview"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/sales"] }); // Force refetch
+      await queryClient.invalidateQueries({ queryKey: ["/api/stock/current"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/reports/overview"],
+      });
       setSaleItems([]);
-      setSelectedProduct("");
     },
     onError: (error: any) => {
       toast({
@@ -103,7 +116,7 @@ export default function Sales() {
     },
   });
 
-  if (sessionLoading || itemsLoading) {
+  if (sessionLoading || products.length === 0) {
     return <div>Loading...</div>;
   }
 

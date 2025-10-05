@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getItems, createItem } from "@/lib/api";
+import { getRawMaterials, createRawMaterial } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -31,20 +31,20 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { NewItem } from "@shared/schema";
 
-export default function Items() {
+export default function RawMaterials() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
-    queryKey: ["/api/items"],
-    queryFn: getItems,
+    queryKey: ["/api/raw-materials"],
+    queryFn: getRawMaterials,
   });
 
   const createMutation = useMutation({
-    mutationFn: (newItem: NewItem) => createItem(newItem),
+    mutationFn: (newItem: NewItem) => createRawMaterial(newItem),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/raw-materials"] });
       toast({ title: "Item created successfully" });
       setIsDialogOpen(false);
     },
@@ -61,7 +61,7 @@ export default function Items() {
 
   return (
     <Layout
-      title="Items"
+      title="Raw Materials"
       description="Manage all ingredients, sub-assemblies, and sellable products."
     >
       <div className="flex justify-end mb-4">
@@ -116,15 +116,13 @@ export default function Items() {
 const ItemForm = ({ items, onSubmit, isPending }) => {
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
-  const [type, setType] = useState<"RAW" | "MANUFACTURED" | "SELLABLE">(
-    "RAW"
-  );
+  const [type, setType] = useState<"RAW" | "MANUFACTURED" | "SELLABLE">("RAW");
   const [unit, setUnit] = useState("");
   const [price, setPrice] = useState("");
   const [lowStockLevel, setLowStockLevel] = useState("");
-  const [recipe, setRecipe] = useState<{ childItemId: string; quantity: string }[]>(
-    []
-  );
+  const [recipe, setRecipe] = useState<
+    { childItemId: string; quantity: string }[]
+  >([]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -155,11 +153,21 @@ const ItemForm = ({ items, onSubmit, isPending }) => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">Name</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
         </div>
         <div>
           <Label htmlFor="unit">Unit</Label>
-          <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} required />
+          <Input
+            id="unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            required
+          />
         </div>
       </div>
       <div>
@@ -188,16 +196,16 @@ const ItemForm = ({ items, onSubmit, isPending }) => {
         </div>
       )}
       <div>
-          <Label htmlFor="sku">SKU</Label>
-          <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} />
+        <Label htmlFor="sku">SKU</Label>
+        <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} />
       </div>
       <div>
         <Label htmlFor="lowStockLevel">Low Stock Level</Label>
         <Input
-            id="lowStockLevel"
-            type="number"
-            value={lowStockLevel}
-            onChange={(e) => setLowStockLevel(e.target.value)}
+          id="lowStockLevel"
+          type="number"
+          value={lowStockLevel}
+          onChange={(e) => setLowStockLevel(e.target.value)}
         />
       </div>
 
@@ -207,7 +215,9 @@ const ItemForm = ({ items, onSubmit, isPending }) => {
           {recipe.map((item, index) => (
             <div key={index} className="flex gap-2 mb-2 items-center">
               <Select
-                onValueChange={(v) => handleRecipeChange(index, "childItemId", v)}
+                onValueChange={(v) =>
+                  handleRecipeChange(index, "childItemId", v)
+                }
                 value={item.childItemId}
               >
                 <SelectTrigger>

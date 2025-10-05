@@ -27,13 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ShoppingCart,
-  Plus,
-  Trash2,
-  Package,
-  Calendar,
-} from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Package, Calendar } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   getPurchases,
@@ -41,6 +35,7 @@ import {
   getItems,
   getSuppliers,
   createSupplier,
+  getRawMaterials,
 } from "@/lib/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -76,11 +71,11 @@ export default function Purchases() {
     queryFn: () => getPurchases(),
   });
 
-  const { data: allItems = [] } = useQuery({
-    queryKey: ["/api/items"],
-    queryFn: () => getItems(),
+  const { data: items = [] } = useQuery({
+    queryKey: ["/api/raw-materials"],
+    queryFn: getRawMaterials,
   });
-  const rawItems = allItems.filter((item) => item.type === "RAW");
+  const rawItems = items.filter((item) => item.type === "RAW");
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["/api/suppliers"],
@@ -309,9 +304,7 @@ export default function Purchases() {
                               updatePurchaseItem(index, "itemId", value);
                             }}
                           >
-                            <SelectTrigger
-                              data-testid={`item-select-${index}`}
-                            >
+                            <SelectTrigger data-testid={`item-select-${index}`}>
                               <SelectValue placeholder="Select item" />
                             </SelectTrigger>
                             <SelectContent>

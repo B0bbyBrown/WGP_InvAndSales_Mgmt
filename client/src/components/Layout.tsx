@@ -62,8 +62,8 @@ export default function Layout({ children, title, description }: LayoutProps) {
       roles: ["ADMIN", "CASHIER"],
     },
     {
-      name: "Items",
-      href: "/items",
+      name: "Raw Materials",
+      href: "/raw-materials",
       icon: Package,
       badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
       roles: ["ADMIN"],

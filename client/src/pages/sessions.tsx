@@ -32,6 +32,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import {
   getActiveCashSession,
   getCashSessions,
@@ -39,8 +40,8 @@ import {
   closeCashSession,
   getSales,
   getItems,
+  getRawMaterials,
 } from "@/lib/api";
-import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -54,22 +55,25 @@ export default function Sessions() {
   const [inventorySnapshots, setInventorySnapshots] = useState<
     Record<string, string>
   >({});
+  const [refreshKey, setRefreshKey] = useState(0); // Re-add refreshKey
 
   const { toast } = useToast();
 
   const { data: activeSession, refetch: refetchActiveSession } = useQuery({
-    queryKey: ["/api/sessions/active"],
+    queryKey: ["/api/sessions/active", refreshKey], // Re-add refreshKey
     queryFn: () => getActiveCashSession(),
+    staleTime: 0, // Override global to force refetch after invalidate
   });
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery({
-    queryKey: ["/api/sessions"],
+    queryKey: ["/api/sessions", refreshKey], // Re-add refreshKey
     queryFn: () => getCashSessions(),
+    staleTime: 0, // Override global to force refetch after invalidate
   });
 
   const { data: allItems = [] } = useQuery({
-    queryKey: ["/api/items"],
-    queryFn: getItems,
+    queryKey: ["/api/raw-materials"],
+    queryFn: getRawMaterials,
   });
   const rawItems = allItems.filter((item) => item.type === "RAW");
 
@@ -84,44 +88,65 @@ export default function Sessions() {
   const openSessionMutation = useMutation({
     mutationFn: openCashSession,
     onMutate: async (newSession) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/sessions/active"] });
-      await queryClient.cancelQueries({ queryKey: ["/api/sessions"] });
+      // Use the full query key with refreshKey
+      await queryClient.cancelQueries({
+        queryKey: ["/api/sessions/active", refreshKey],
+      });
+      await queryClient.cancelQueries({
+        queryKey: ["/api/sessions", refreshKey],
+      });
 
-      // Snapshot the previous value
       const previousSession = queryClient.getQueryData([
         "/api/sessions/active",
+        refreshKey,
       ]);
 
-      // Optimistically update to the new value
-      queryClient.setQueryData(["/api/sessions/active"], {
+      // Use the full query key with refreshKey
+      queryClient.setQueryData(["/api/sessions/active", refreshKey], {
         id: "temp-id",
         openedAt: new Date().toISOString(),
         openingFloat: newSession.openingFloat,
         notes: newSession.notes,
       });
 
-      // Return a context object with the snapshotted value
       return { previousSession };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      console.log("Session opened successfully:", data);
+      // Use the full query key with refreshKey
+      queryClient.setQueryData(["/api/sessions/active", refreshKey], data);
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/sessions/active"],
+      });
+      await queryClient.refetchQueries({ queryKey: ["/api/sessions/active"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/sessions"] });
       toast({
         title: "Session Opened",
         description: "Cash session started successfully",
       });
-      // Update queries with the actual data
-      queryClient.setQueryData(["/api/sessions/active"], data);
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       setIsOpenDialogOpen(false);
       setOpeningFloat("");
       setInventorySnapshots({});
+      console.log("Queries invalidated and refetched"); // Re-add log
+      setRefreshKey((prev) => prev + 1); // Re-add refreshKey update
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to open session",
-        variant: "destructive",
-      });
+      // Check for our specific inventory error
+      if (error.message?.includes("Insufficient Inventory")) {
+        toast({
+          title: "Inventory Error",
+          description:
+            "Not enough stock to open session. Please adjust quantities.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to open session",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -129,48 +154,65 @@ export default function Sessions() {
     mutationFn: ({ sessionId, data }: { sessionId: string; data: any }) =>
       closeCashSession(sessionId, data),
     onMutate: async ({ sessionId, data }) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["/api/sessions/active"] });
-      await queryClient.cancelQueries({ queryKey: ["/api/sessions"] });
+      // Use the full query key with refreshKey
+      await queryClient.cancelQueries({
+        queryKey: ["/api/sessions/active", refreshKey],
+      });
+      await queryClient.cancelQueries({
+        queryKey: ["/api/sessions", refreshKey],
+      });
 
-      // Snapshot the previous values
+      // Use the full query key with refreshKey
       const previousSession = queryClient.getQueryData([
         "/api/sessions/active",
+        refreshKey,
       ]);
-      const previousSessions = queryClient.getQueryData(["/api/sessions"]);
+      const previousSessions = queryClient.getQueryData([
+        "/api/sessions",
+        refreshKey,
+      ]);
 
-      // Optimistically update to the new value
-      queryClient.setQueryData(["/api/sessions/active"], null);
+      // Use the full query key with refreshKey
+      queryClient.setQueryData(["/api/sessions/active", refreshKey], null);
       if (previousSession) {
-        queryClient.setQueryData(["/api/sessions"], (old: any[]) => {
-          const updated = old.map((session) =>
-            session.id === sessionId
-              ? {
-                  ...session,
-                  closedAt: new Date().toISOString(),
-                  closingFloat: data.closingFloat,
-                  notes: data.notes,
-                }
-              : session
-          );
-          return updated;
-        });
+        // Use the full query key and add a guard for undefined
+        queryClient.setQueryData(
+          ["/api/sessions", refreshKey],
+          (old: any[] | undefined) => {
+            if (!old) return []; // Guard against undefined data
+            return old.map((session) =>
+              session.id === sessionId
+                ? {
+                    ...session,
+                    closedAt: new Date().toISOString(),
+                    closingFloat: data.closingFloat,
+                    notes: data.notes,
+                  }
+                : session
+            );
+          }
+        );
       }
 
       // Return a context object with the snapshotted values
       return { previousSession, previousSessions };
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({
         title: "Session Closed",
         description: "Cash session closed successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions/active"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/sessions/active"],
+      });
+      await queryClient.refetchQueries({ queryKey: ["/api/sessions/active"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/sessions"] });
       setIsCloseDialogOpen(false);
       setClosingFloat("");
       setCloseNotes("");
       setInventorySnapshots({});
+      setRefreshKey((prev) => prev + 1); // Add refreshKey update here too
     },
     onError: (error: any) => {
       toast({
@@ -182,23 +224,8 @@ export default function Sessions() {
   });
 
   const handleOpenSession = () => {
-    console.log("Current state:", {
-      activeSession,
-      openingFloat,
-      inventorySnapshots,
-      rawItems,
-    });
-
-    if (activeSession) {
-      toast({
-        title: "Error",
-        description: "Please close the active session before opening a new one",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!openingFloat) {
+    // Validation
+    if (!openingFloat || isNaN(parseFloat(openingFloat))) {
       toast({
         title: "Error",
         description: "Please enter the opening float amount",
@@ -217,12 +244,12 @@ export default function Sessions() {
     }
 
     // Filter out empty inventory entries
-    const inventory = rawItems
-      .map((item) => ({
-        itemId: item.id,
-        quantity: inventorySnapshots[item.id] || "",
-      }))
-      .filter((item) => item.quantity !== "");
+    const inventory = Object.entries(inventorySnapshots)
+      .filter(([, quantity]) => quantity && parseFloat(quantity) > 0)
+      .map(([itemId, quantity]) => ({
+        itemId,
+        quantity,
+      }));
 
     if (inventory.length === 0) {
       toast({
@@ -238,8 +265,6 @@ export default function Sessions() {
       notes: "Session opened",
       inventory,
     };
-
-    console.log("Opening session with payload:", payload);
     openSessionMutation.mutate(payload);
   };
 
@@ -256,12 +281,12 @@ export default function Sessions() {
     }
 
     // Filter out empty inventory entries
-    const inventory = rawItems
-      .map((item) => ({
-        itemId: item.id,
-        quantity: inventorySnapshots[item.id] || "",
-      }))
-      .filter((item) => item.quantity !== "");
+    const inventory = Object.entries(inventorySnapshots)
+      .filter(([, quantity]) => quantity && parseFloat(quantity) >= 0)
+      .map(([itemId, quantity]) => ({
+        itemId,
+        quantity,
+      }));
 
     if (inventory.length === 0) {
       toast({
@@ -272,14 +297,17 @@ export default function Sessions() {
       return;
     }
 
-    closeSessionMutation.mutate({
-      sessionId: activeSession.id,
-      data: {
+    if (activeSession) {
+      const payload = {
         closingFloat,
-        notes: closeNotes || "Session closed",
+        notes: closeNotes,
         inventory,
-      },
-    });
+      };
+      closeSessionMutation.mutate({
+        sessionId: activeSession.id,
+        data: payload,
+      });
+    }
   };
 
   const handleSnapshotChange = (itemId: string, value: string) => {
@@ -344,7 +372,9 @@ export default function Sessions() {
           <CardTitle>Session Control</CardTitle>
         </CardHeader>
         <CardContent>
-          {activeSession ? (
+          {activeSession === undefined ? (
+            <div className="text-center py-4">Loading session...</div> // Add loading indicator
+          ) : activeSession ? (
             <div className="space-y-4" data-testid="active-session-info">
               <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center">
@@ -525,10 +555,7 @@ export default function Sessions() {
                             min="0"
                             value={inventorySnapshots[item.id] || ""}
                             onChange={(e) =>
-                              handleSnapshotChange(
-                                item.id,
-                                e.target.value
-                              )
+                              handleSnapshotChange(item.id, e.target.value)
                             }
                             placeholder={item.unit}
                           />
@@ -681,10 +708,7 @@ export default function Sessions() {
                               min="0"
                               value={inventorySnapshots[item.id] || ""}
                               onChange={(e) =>
-                                handleSnapshotChange(
-                                  item.id,
-                                  e.target.value
-                                )
+                                handleSnapshotChange(item.id, e.target.value)
                               }
                               placeholder={item.unit}
                             />

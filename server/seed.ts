@@ -65,14 +65,38 @@ export async function seed() {
       { name: "Tomato Sauce", type: "RAW", unit: "L", lowStockLevel: 5 },
       { name: "Mozzarella Cheese", type: "RAW", unit: "kg", lowStockLevel: 5 },
       { name: "Pepperoni", type: "RAW", unit: "kg", lowStockLevel: 2 },
-      { name: "Canned Soda", type: "SELLABLE", unit: "can", lowStockLevel: 24, price: 2.5, sku: "DR-COKE" },
+      {
+        name: "Canned Soda",
+        type: "SELLABLE",
+        unit: "can",
+        lowStockLevel: 24,
+        price: 2.5,
+        sku: "DR-COKE",
+      },
 
       // Manufactured Items (Sub-assemblies)
-      { name: "Pizza Dough", type: "MANUFACTURED", unit: "ball", lowStockLevel: 10 },
+      {
+        name: "Pizza Dough",
+        type: "MANUFACTURED",
+        unit: "ball",
+        lowStockLevel: 10,
+      },
 
       // Sellable Products
-      { name: "Margherita Pizza", type: "SELLABLE", unit: "unit", price: 12.0, sku: "PIZ-MAR" },
-      { name: "Pepperoni Pizza", type: "SELLABLE", unit: "unit", price: 14.0, sku: "PIZ-PEP" },
+      {
+        name: "Margherita Pizza",
+        type: "SELLABLE",
+        unit: "unit",
+        price: 12.0,
+        sku: "PIZ-MAR",
+      },
+      {
+        name: "Pepperoni Pizza",
+        type: "SELLABLE",
+        unit: "unit",
+        price: 14.0,
+        sku: "PIZ-PEP",
+      },
     ];
 
     const itemIds: { [key: string]: string } = {};
@@ -92,9 +116,9 @@ export async function seed() {
         parent: "Pizza Dough",
         children: [
           { child: "Flour", quantity: 0.5 }, // 0.5 kg
-          { child: "Yeast", quantity: 10 },   // 10 g
+          { child: "Yeast", quantity: 10 }, // 10 g
           { child: "Water", quantity: 0.3 }, // 0.3 L
-          { child: "Salt", quantity: 0.01 },// 0.01 kg
+          { child: "Salt", quantity: 0.01 }, // 0.01 kg
         ],
       },
       {
@@ -128,6 +152,85 @@ export async function seed() {
         });
       }
     }
+
+    console.log("Seeding suppliers...");
+
+    const supplierData = [
+      {
+        name: "General Supplier",
+        phone: "123-456-7890",
+        email: "info@generalsupplier.com",
+      },
+      {
+        name: "Dairy Supplier",
+        phone: "987-654-3210",
+        email: "sales@dairysupplier.com",
+      },
+    ];
+
+    const supplierIds = {};
+    for (const supplier of supplierData) {
+      let existing = await storage.getSupplierByName(supplier.name);
+      if (existing) {
+        supplierIds[supplier.name] = existing.id;
+        continue;
+      }
+      const newSupplier = await storage.createSupplier(supplier);
+      supplierIds[supplier.name] = newSupplier.id;
+    }
+
+    console.log("Seeding purchase orders for raw materials...");
+
+    const purchaseData = [
+      {
+        supplier: "General Supplier",
+        items: [
+          { item: "Flour", quantity: 50, totalCost: 100 }, // e.g., 50kg at $2/kg
+          { item: "Yeast", quantity: 5000, totalCost: 50 }, // 5000g at $0.01/g
+          { item: "Water", quantity: 100, totalCost: 10 }, // 100L at $0.1/L
+          { item: "Salt", quantity: 10, totalCost: 5 }, // 10kg at $0.5/kg
+        ],
+        notes: "Initial stock purchase for basics",
+      },
+      {
+        supplier: "Dairy Supplier",
+        items: [
+          { item: "Tomato Sauce", quantity: 50, totalCost: 150 }, // 50L at $3/L
+          { item: "Mozzarella Cheese", quantity: 20, totalCost: 200 }, // 20kg at $10/kg
+          { item: "Pepperoni", quantity: 10, totalCost: 100 }, // 10kg at $10/kg
+        ],
+        notes: "Dairy and sauce purchase",
+      },
+    ];
+
+    for (const purchase of purchaseData) {
+      const supplierId = supplierIds[purchase.supplier];
+
+      // Check if purchase already exists
+      const existingPurchases = await storage.getPurchases({ supplierId });
+      if (existingPurchases.some((p) => p.notes === purchase.notes)) {
+        console.log(`Skipping existing purchase: ${purchase.notes}`);
+        continue;
+      }
+
+      // Prepare items array with itemIds
+      const purchaseItems = purchase.items.map((pi) => ({
+        itemId: itemIds[pi.item],
+        quantity: pi.quantity,
+        totalCost: pi.totalCost,
+      }));
+
+      // Call createPurchase with full data
+      const newPurchase = await storage.createPurchase({
+        supplierId,
+        notes: purchase.notes,
+        items: purchaseItems,
+      });
+
+      // No need for separate createPurchaseItem calls, as it's handled in createPurchase
+    }
+
+    console.log("Database fully seeded with purchases");
 
     console.log("Database seeded successfully");
   } catch (error) {

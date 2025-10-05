@@ -40,19 +40,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Auth Middleware (to protect routes)
-  const authMiddleware = (requiredRole?: string) => (req, res, next) => {
-    if (!req.session.userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    if (
-      requiredRole &&
-      req.session.role !== requiredRole &&
-      req.session.role !== "DEV"
-    ) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-    next();
-  };
+  const authMiddleware =
+    (requiredRoles?: string | string[]) => (req, res, next) => {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const allowed = Array.isArray(requiredRoles)
+        ? requiredRoles
+        : requiredRoles
+        ? [requiredRoles]
+        : [];
+      if (
+        allowed.length > 0 &&
+        !allowed.includes(req.session.role) &&
+        req.session.role !== "DEV"
+      ) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      next();
+    };
 
   // Auth Routes
   app.post("/api/auth/login", async (req, res) => {
@@ -118,21 +124,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(users);
   });
 
-  // Protect sensitive routes (e.g., admin-only)
-  app.use("/api/items", authMiddleware("ADMIN"));
-
   // Items (replaces Ingredients and Products)
-  app.get("/api/items", async (req, res) => {
-    try {
-      const items = await storage.getItems();
-      res.json(items);
-    } catch (error) {
-      console.error("❌ Failed to fetch items:", error);
-      res.status(500).json({ error: "Failed to fetch items" });
+  app.get(
+    "/api/raw-materials",
+    authMiddleware(["ADMIN", "CASHIER"]),
+    async (req, res) => {
+      try {
+        const items = await storage.getItems();
+        res.json(items);
+      } catch (error) {
+        console.error("❌ Failed to fetch items:", error);
+        res.status(500).json({ error: "Failed to fetch items" });
+      }
     }
-  });
+  );
 
-  app.post("/api/items", async (req, res) => {
+  app.post("/api/raw-materials", authMiddleware("ADMIN"), async (req, res) => {
     try {
       const data = newItemSchema.parse(req.body);
       const item = await storage.createItem(data);
@@ -146,14 +153,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/items/:id/recipe", async (req, res) => {
-    try {
-      const recipeItems = await storage.getRecipeItems(req.params.id);
-      res.json(recipeItems);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch recipe" });
+  app.get(
+    "/api/raw-materials/:id/recipe",
+    authMiddleware(["ADMIN", "CASHIER"]),
+    async (req, res) => {
+      try {
+        const recipeItems = await storage.getRecipeItems(req.params.id);
+        res.json(recipeItems);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch recipe" });
+      }
     }
-  });
+  );
 
   // Suppliers
   app.get("/api/suppliers", async (req, res) => {
@@ -348,25 +359,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const body = openSessionSchema.parse(req.body);
       console.log("Parsed session data:", body);
 
-      const session = await storage.openSessionAndMoveStock(body, adminUserId);
+      const session = await storage.openSessionAndMoveStock(
+        body,
+        req.session.userId!
+      );
 
       console.log("Session created and stock updated successfully:", session);
 
       res.json(session);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to open cash session:", error);
       if (error.errors || error.issues) {
         // Zod validation error
-        res.status(400).json({
+        return res.status(400).json({
           error: "Validation failed",
           details: error.errors || error.issues,
         });
-      } else {
-        res.status(400).json({
-          error: "Failed to open cash session",
-          details: error.message || error,
+      }
+
+      // Handle specific inventory error
+      if (error.message?.includes("Insufficient inventory")) {
+        return res.status(400).json({
+          error: "Insufficient Inventory",
+          details: error.message,
         });
       }
+
+      return res.status(500).json({
+        error: "Failed to open cash session",
+        details: error.message || "An internal server error occurred",
+      });
     }
   });
 

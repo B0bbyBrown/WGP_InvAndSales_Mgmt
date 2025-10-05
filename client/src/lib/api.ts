@@ -32,7 +32,8 @@ import {
 
 // Items
 export const getItems = () => apiRequest("GET", "/api/items");
-export const createItem = (data: NewItem) => apiRequest("POST", "/api/items", data);
+export const createItem = (data: NewItem) =>
+  apiRequest("POST", "/api/items", data);
 export const getItemRecipe = (itemId: string) =>
   apiRequest("GET", `/api/items/${itemId}/recipe`);
 
@@ -63,10 +64,7 @@ export const getLowStock = () => apiRequest("GET", "/api/stock/low");
 export const adjustStock = (data: StockAdjustment) =>
   apiRequest("POST", "/api/stock/adjust", data);
 export const getStockMovements = (itemId?: string) =>
-  apiRequest(
-    "GET",
-    `/api/stock/movements${itemId ? `?itemId=${itemId}` : ""}`
-  );
+  apiRequest("GET", `/api/stock/movements${itemId ? `?itemId=${itemId}` : ""}`);
 
 // Sales
 export const getSales = (from?: string, to?: string) => {
@@ -131,3 +129,7 @@ export const getRecentActivity = (limit: number = 10) =>
 export const getPendingOrders = () => apiRequest("GET", "/api/kitchen/orders");
 export const updateSaleItemStatus = (id: string, status: string) =>
   apiRequest("PATCH", `/api/sale-items/${id}/status`, { status });
+
+export const getRawMaterials = () => apiRequest("GET", "/api/raw-materials");
+export const createRawMaterial = (data: NewItem) =>
+  apiRequest("POST", "/api/raw-materials", data);
