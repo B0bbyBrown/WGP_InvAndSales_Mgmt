@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Plus,
   ScanBarcode,
+  HelpCircle,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getActiveCashSession, getLowStock } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "../lib/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../components/ui/tooltip";
 
 interface LayoutProps {
   children: React.ReactNode;

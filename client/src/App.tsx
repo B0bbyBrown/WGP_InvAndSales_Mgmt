@@ -16,6 +16,7 @@ import { useContext, useEffect } from "react";
 import { getCurrentUser } from "@/lib/api"; // Assume this calls /api/auth/me
 import { AuthContext } from "./contexts/AuthContext";
 import Kitchen from "@/pages/kitchen"; // Assuming we'll create this file
+import Help from "./pages/help.tsx";
 
 function App() {
   const {
@@ -99,6 +100,7 @@ function App() {
               component={Kitchen}
               allowedRoles={["KITCHEN", "DEV"]}
             />
+            <Route path="/help" element={<Help />} />
             <Route component={NotFound} />
           </Switch>
         </Router>
