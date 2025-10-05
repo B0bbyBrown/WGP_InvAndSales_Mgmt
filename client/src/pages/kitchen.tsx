@@ -16,6 +16,7 @@ function Kitchen() {
     queryKey: ["/api/kitchen/orders"],
     queryFn: getPendingOrders,
     refetchInterval: 5000, // Refetch every 5 seconds
+    staleTime: 0, // Force refetch on invalidation
   });
 
   const updateMutation = useMutation({
@@ -91,7 +92,6 @@ const OrderCard = ({ order, mutation }) => {
     DONE: "border-green-500",
   };
 
-
   const handleUpdateStatus = (item, nextStatus) => {
     if (nextStatus) {
       mutation.mutate({ id: item.id, status: nextStatus });
@@ -142,9 +142,7 @@ const OrderCard = ({ order, mutation }) => {
                   }
                   disabled={mutation.isPending}
                 >
-                  {getNextStatus(item.status) === "PREPPING"
-                    ? "Prep"
-                    : "Done"}
+                  {getNextStatus(item.status) === "PREPPING" ? "Prep" : "Done"}
                 </Button>
               )}
             </div>
@@ -159,4 +157,3 @@ const OrderCard = ({ order, mutation }) => {
 };
 
 export default Kitchen;
-

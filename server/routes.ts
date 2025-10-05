@@ -127,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Items (replaces Ingredients and Products)
   app.get(
     "/api/raw-materials",
-    authMiddleware(["ADMIN", "CASHIER"]),
+    authMiddleware(["ADMIN", "KITCHEN"]), // Add KITCHEN role
     async (req, res) => {
       try {
         const items = await storage.getItems();
@@ -216,14 +216,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/stock/low", async (req, res) => {
-    try {
-      const lowStock = await storage.getLowStockItems();
-      res.json(lowStock);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch low stock items" });
+  app.get(
+    "/api/stock/low",
+    authMiddleware(["ADMIN", "KITCHEN"]), // Add KITCHEN role
+    async (req, res) => {
+      try {
+        const lowStock = await storage.getLowStockItems();
+        res.json(lowStock);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch low stock items" });
+      }
     }
-  });
+  );
 
   app.post("/api/stock/adjust", async (req, res) => {
     try {

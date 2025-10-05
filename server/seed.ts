@@ -53,6 +53,18 @@ export async function seed() {
       });
     }
 
+    // Create dev user
+    const devUser = await storage.getUserByEmail("dev@pizzatruck.com");
+    if (!devUser) {
+      const hashedPassword = hashPassword("dev");
+      await storage.createUser({
+        email: "dev@pizzatruck.com",
+        password: hashedPassword,
+        name: "Dev User",
+        role: "DEV",
+      });
+    }
+
     console.log("Seeding items and recipes...");
 
     // Seed Items

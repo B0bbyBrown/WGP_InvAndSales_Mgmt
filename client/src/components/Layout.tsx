@@ -67,56 +67,56 @@ export default function Layout({ children, title, description }: LayoutProps) {
       name: "Dashboard",
       href: "/",
       icon: BarChart3,
-      roles: ["ADMIN", "CASHIER"],
+      roles: ["ADMIN", "CASHIER", "DEV"],
     },
     {
       name: "Raw Materials",
       href: "/raw-materials",
       icon: Package,
       badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
-      roles: ["ADMIN"],
+      roles: ["ADMIN", "DEV"],
     },
     {
       name: "Purchases",
       href: "/purchases",
       icon: ShoppingCart,
-      roles: ["ADMIN"],
+      roles: ["ADMIN", "DEV"],
     },
     {
       name: "Point of Sale",
       href: "/sales",
       icon: ScanBarcode,
-      roles: ["ADMIN", "CASHIER"],
+      roles: ["CASHIER", "DEV"],
     },
     {
       name: "Cash Sessions",
       href: "/sessions",
       icon: Coins,
-      roles: ["ADMIN", "CASHIER"],
+      roles: ["CASHIER", "DEV"],
     },
     {
       name: "Kitchen View",
       href: "/kitchen",
       icon: Utensils,
-      roles: ["KITCHEN"],
+      roles: ["KITCHEN", "DEV"],
     },
     {
       name: "Expenses",
       href: "/expenses",
       icon: Receipt,
-      roles: ["ADMIN"],
+      roles: ["ADMIN", "DEV"],
     },
     {
       name: "Reports",
       href: "/reports",
       icon: BarChart3,
-      roles: ["ADMIN"],
+      roles: ["ADMIN", "DEV"],
     },
     {
       name: "Users",
       href: "/users",
       icon: User,
-      roles: ["ADMIN"],
+      roles: ["ADMIN", "DEV"],
     },
   ];
 
@@ -299,7 +299,11 @@ export default function Layout({ children, title, description }: LayoutProps) {
               </select>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="icon" data-testid="help-button">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    data-testid="help-button"
+                  >
                     <HelpCircle className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
