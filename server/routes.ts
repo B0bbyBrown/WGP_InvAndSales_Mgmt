@@ -2,18 +2,16 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import {
-  insertIngredientSchema,
   insertSupplierSchema,
-  insertProductSchema,
   newPurchaseSchema,
   newSaleSchema,
   stockAdjustmentSchema,
   insertCashSessionSchema,
   insertExpenseSchema,
-  insertRecipeItemSchema,
   openSessionSchema,
   closeSessionSchema,
   insertUserSchema,
+  newItemSchema,
 } from "@shared/schema";
 import session from "express-session";
 import bcrypt from "bcryptjs";
@@ -121,28 +119,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Protect sensitive routes (e.g., admin-only)
-  app.use("/api/products", authMiddleware("ADMIN")); // Example: Protect product management
+  app.use("/api/items", authMiddleware("ADMIN"));
 
-  // Ingredients
-  app.get("/api/ingredients", async (req, res) => {
+  // Items (replaces Ingredients and Products)
+  app.get("/api/items", async (req, res) => {
     try {
-      console.log("📝 Fetching ingredients from SQLite...");
-      const ingredients = await storage.getIngredients();
-      console.log(`✅ Found ${ingredients.length} ingredients`);
-      res.json(ingredients);
+      const items = await storage.getItems();
+      res.json(items);
     } catch (error) {
-      console.error("❌ Failed to fetch ingredients:", error);
-      res.status(500).json({ error: "Failed to fetch ingredients" });
+      console.error("❌ Failed to fetch items:", error);
+      res.status(500).json({ error: "Failed to fetch items" });
     }
   });
 
-  app.post("/api/ingredients", async (req, res) => {
+  app.post("/api/items", async (req, res) => {
     try {
-      const data = insertIngredientSchema.parse(req.body);
-      const ingredient = await storage.createIngredient(data);
-      res.json(ingredient);
+      const data = newItemSchema.parse(req.body);
+      const item = await storage.createItem(data);
+      res.json(item);
+    } catch (error: any) {
+      console.error("Failed to create item:", error);
+      res.status(400).json({
+        error: "Failed to create item",
+        details: error.errors || error.issues || error.message,
+      });
+    }
+  });
+
+  app.get("/api/items/:id/recipe", async (req, res) => {
+    try {
+      const recipeItems = await storage.getRecipeItems(req.params.id);
+      res.json(recipeItems);
     } catch (error) {
-      res.status(400).json({ error: "Invalid ingredient data" });
+      res.status(500).json({ error: "Failed to fetch recipe" });
     }
   });
 
@@ -163,63 +172,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(supplier);
     } catch (error) {
       res.status(400).json({ error: "Invalid supplier data" });
-    }
-  });
-
-  // Products
-  app.get("/api/products", async (req, res) => {
-    try {
-      const products = await storage.getProducts();
-      res.json(products);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch products" });
-    }
-  });
-
-  app.post("/api/products", async (req, res) => {
-    try {
-      console.log(
-        "Creating product with data:",
-        JSON.stringify(req.body, null, 2)
-      );
-      const data = insertProductSchema.parse(req.body);
-      const product = await storage.createProduct(data);
-
-      if (data.recipe) {
-        console.log("Creating recipe items:", data.recipe);
-        for (const item of data.recipe) {
-          await storage.createRecipeItem({
-            productId: product.id,
-            ingredientId: item.ingredientId,
-            quantity: item.quantity,
-          });
-        }
-      }
-
-      console.log("Product created successfully:", product);
-      res.json(product);
-    } catch (error: any) {
-      console.error("Failed to create product:", error);
-      if (error.errors || error.issues) {
-        res.status(400).json({
-          error: "Validation failed",
-          details: error.errors || error.issues,
-        });
-      } else {
-        res.status(400).json({
-          error: "Failed to create product",
-          details: error.message || error,
-        });
-      }
-    }
-  });
-
-  app.get("/api/products/:id/recipe", async (req, res) => {
-    try {
-      const recipeItems = await storage.getRecipeItems(req.params.id);
-      res.json(recipeItems);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch recipe" });
     }
   });
 
@@ -255,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stock/low", async (req, res) => {
     try {
-      const lowStock = await storage.getLowStockIngredients();
+      const lowStock = await storage.getLowStockItems();
       res.json(lowStock);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch low stock items" });
@@ -274,8 +226,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stock/movements", async (req, res) => {
     try {
-      const ingredientId = req.query.ingredientId as string;
-      const movements = await storage.getStockMovements(ingredientId);
+      const itemId = req.query.itemId as string;
+      const movements = await storage.getStockMovements(itemId);
       res.json(movements);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stock movements" });

@@ -1,12 +1,10 @@
 import {
   type User,
   type InsertUser,
-  type Ingredient,
-  type InsertIngredient,
+  type Item,
+  type InsertItem,
   type Supplier,
   type InsertSupplier,
-  type Product,
-  type InsertProduct,
   type Purchase,
   type InsertPurchase,
   type PurchaseItem,
@@ -28,10 +26,11 @@ import {
   type NewPurchase,
   type NewSale,
   type StockAdjustment,
+  type OpenSessionRequest,
+  type NewItem,
   users,
-  ingredients,
+  items,
   suppliers,
-  products,
   purchases,
   purchaseItems,
   inventoryLots,
@@ -144,53 +143,91 @@ export class SqliteStorage implements IStorage {
     return updated;
   }
 
-  // Ingredients
-  async getIngredients(): Promise<Ingredient[]> {
-    return await db.select().from(ingredients).orderBy(asc(ingredients.name));
+  // Items (replaces Ingredients and Products)
+  async getItems(): Promise<Item[]> {
+    return await db.select().from(items).orderBy(asc(items.name));
   }
 
-  async getIngredient(id: string): Promise<Ingredient | undefined> {
-    const [ingredient] = await db
-      .select()
-      .from(ingredients)
-      .where(eq(ingredients.id, id));
-    return ingredient;
+  async getItem(id: string): Promise<Item | undefined> {
+    const [item] = await db.select().from(items).where(eq(items.id, id));
+    return item;
   }
 
-  async getIngredientByName(name: string): Promise<Ingredient | undefined> {
-    const [ingredient] = await db
-      .select()
-      .from(ingredients)
-      .where(eq(ingredients.name, name));
-    return ingredient;
+  async getItemByName(name: string): Promise<Item | undefined> {
+    const [item] = await db.select().from(items).where(eq(items.name, name));
+    return item;
   }
 
-  async createIngredient(ingredient: InsertIngredient): Promise<Ingredient> {
-    const [created] = await db
-      .insert(ingredients)
-      .values({
-        ...ingredient,
-        lowStockLevel: ingredient.lowStockLevel
-          ? toNum(ingredient.lowStockLevel)
-          : null,
-      })
-      .returning();
-    return created;
+  async getItemBySku(sku: string): Promise<Item | undefined> {
+    if (!sku) return undefined;
+    const [item] = await db.select().from(items).where(eq(items.sku, sku));
+    return item;
   }
 
-  async updateIngredient(
-    id: string,
-    ingredient: Partial<InsertIngredient>
-  ): Promise<Ingredient> {
+  async createItem(item: NewItem): Promise<Item> {
+    const createdItem = sqlite.transaction(() => {
+      const newItem = db
+        .insert(items)
+        .values({
+          name: item.name,
+          sku: item.sku,
+          type: item.type,
+          unit: item.unit,
+          price: item.price ? toNum(item.price) : null,
+          lowStockLevel: item.lowStockLevel
+            ? toNum(item.lowStockLevel)
+            : null,
+        })
+        .returning()
+        .get();
+
+      if (!newItem) {
+        throw new Error("Failed to create item");
+      }
+
+      // Add initial stock for RAW items that are not sellable without a recipe
+      if (item.type === "RAW" || (item.type === "SELLABLE" && !item.recipe)) {
+        db.insert(inventoryLots)
+          .values({
+            itemId: newItem.id,
+            quantity: 100, // Generous starting stock
+            unitCost: 0.5, // Arbitrary cost
+          })
+          .run();
+      }
+
+      if (item.recipe && item.recipe.length > 0) {
+        if (newItem.type === "RAW") {
+          throw new Error("RAW items cannot have a recipe.");
+        }
+        for (const recipeItem of item.recipe) {
+          db.insert(recipeItems)
+            .values({
+              parentItemId: newItem.id,
+              childItemId: recipeItem.childItemId,
+              quantity: toNum(recipeItem.quantity),
+            })
+            .run();
+        }
+      }
+
+      return newItem;
+    })();
+
+    return createdItem;
+  }
+
+  async updateItem(id: string, item: Partial<InsertItem>): Promise<Item> {
     const [updated] = await db
-      .update(ingredients)
+      .update(items)
       .set({
-        ...ingredient,
-        lowStockLevel: ingredient.lowStockLevel
-          ? toNum(ingredient.lowStockLevel)
+        ...item,
+        price: item.price ? toNum(item.price) : undefined,
+        lowStockLevel: item.lowStockLevel
+          ? toNum(item.lowStockLevel)
           : undefined,
       })
-      .where(eq(ingredients.id, id))
+      .where(eq(items.id, id))
       .returning();
     return updated;
   }
@@ -205,58 +242,12 @@ export class SqliteStorage implements IStorage {
     return created;
   }
 
-  // Products
-  async getProducts(): Promise<Product[]> {
-    return await db.select().from(products).orderBy(asc(products.name));
-  }
-
-  async getProduct(id: string): Promise<Product | undefined> {
-    const [product] = await db
-      .select()
-      .from(products)
-      .where(eq(products.id, id));
-    return product;
-  }
-
-  async createProduct(product: {
-    name: string;
-    sku: string;
-    price: string | number;
-    active?: boolean;
-  }): Promise<Product> {
-    const [created] = await db
-      .insert(products)
-      .values({
-        name: product.name,
-        sku: product.sku,
-        price: toNum(product.price),
-        active: product.active ?? true,
-      })
-      .returning();
-    return created;
-  }
-
-  async updateProduct(
-    id: string,
-    product: Partial<InsertProduct>
-  ): Promise<Product> {
-    const [updated] = await db
-      .update(products)
-      .set({
-        ...product,
-        price: product.price ? toNum(product.price) : undefined,
-      })
-      .where(eq(products.id, id))
-      .returning();
-    return updated;
-  }
-
   // Recipe Items
-  async getRecipeItems(productId: string): Promise<RecipeItem[]> {
+  async getRecipeItems(parentItemId: string): Promise<RecipeItem[]> {
     return await db
       .select()
       .from(recipeItems)
-      .where(eq(recipeItems.productId, productId));
+      .where(eq(recipeItems.parentItemId, parentItemId));
   }
 
   async createRecipeItem(recipeItem: InsertRecipeItem): Promise<RecipeItem> {
@@ -270,16 +261,19 @@ export class SqliteStorage implements IStorage {
     return created;
   }
 
-  async deleteRecipeItems(productId: string): Promise<void> {
-    await db.delete(recipeItems).where(eq(recipeItems.productId, productId));
+  async deleteRecipeItems(parentItemId: string): Promise<void> {
+    if (!parentItemId) return;
+    await db
+      .delete(recipeItems)
+      .where(eq(recipeItems.parentItemId, parentItemId));
   }
 
   // Inventory Lots
-  async getInventoryLots(ingredientId: string): Promise<InventoryLot[]> {
+  async getInventoryLots(itemId: string): Promise<InventoryLot[]> {
     return await db
       .select()
       .from(inventoryLots)
-      .where(eq(inventoryLots.ingredientId, ingredientId))
+      .where(eq(inventoryLots.itemId, itemId))
       .orderBy(asc(inventoryLots.purchasedAt)); // FIFO order
   }
 
@@ -313,63 +307,89 @@ export class SqliteStorage implements IStorage {
 
   // Purchases (transaction)
   async createPurchase(purchase: NewPurchase): Promise<Purchase> {
-    return sqlite.transaction(() => {
-      // Create the purchase record
-      const created = db
-        .insert(purchases)
-        .values({
-          supplierId: purchase.supplierId || null,
-          notes: purchase.notes || null,
-        })
-        .returning()
-        .get();
+    return new Promise((resolve, reject) => {
+      try {
+        const createdPurchase = sqlite.transaction(() => {
+          const created = db
+            .insert(purchases)
+            .values({
+              supplierId: purchase.supplierId || null,
+              notes: purchase.notes || null,
+            })
+            .returning()
+            .get();
 
-      if (!created) {
-        throw new Error("Failed to create purchase");
+          if (!created) {
+            throw new Error("Failed to create purchase");
+          }
+
+          for (const item of purchase.items) {
+            const quantity = toNum(item.quantity);
+            const totalCost = toNum(item.totalCost);
+            const unitCost = totalCost / quantity;
+
+            db.insert(purchaseItems)
+              .values({
+                purchaseId: created.id,
+                itemId: item.itemId,
+                quantity,
+                totalCost,
+              })
+              .run();
+
+            db.insert(inventoryLots)
+              .values({
+                itemId: item.itemId,
+                quantity,
+                unitCost,
+              })
+              .run();
+
+            db.insert(stockMovements)
+              .values({
+                kind: "PURCHASE",
+                itemId: item.itemId,
+                quantity,
+                reference: created.id,
+              })
+              .run();
+          }
+
+          const purchaseItemsResult = db
+            .select()
+            .from(purchaseItems)
+            .where(eq(purchaseItems.purchaseId, created.id))
+            .all();
+
+          return { ...created, items: purchaseItemsResult };
+        })();
+        resolve(createdPurchase);
+      } catch (error) {
+        reject(error);
       }
-
-      // Process each purchase item
-      for (const item of purchase.items) {
-        const quantity = toNum(item.quantity);
-        const totalCost = toNum(item.totalCost);
-        const unitCost = totalCost / quantity;
-
-        // Insert purchase item
-        db.insert(purchaseItems)
-          .values({
-            purchaseId: created.id,
-            ingredientId: item.ingredientId,
-            quantity,
-            totalCost,
-          })
-          .run();
-
-        // Create inventory lot
-        db.insert(inventoryLots)
-          .values({
-            ingredientId: item.ingredientId,
-            quantity,
-            unitCost,
-          })
-          .run();
-
-        // Create stock movement
-        db.insert(stockMovements)
-          .values({
-            kind: "PURCHASE",
-            ingredientId: item.ingredientId,
-            quantity,
-            reference: created.id,
-          })
-          .run();
-      }
-
-      return created;
-    })();
+    });
   }
 
   async getPurchases(): Promise<Purchase[]> {
-    return await db.select().from(purchases).orderBy(desc(purchases.createdAt));
+    const allPurchases = await db
+      .select()
+      .from(purchases)
+      .orderBy(desc(purchases.createdAt));
+
+    if (allPurchases.length === 0) {
+      return [];
+    }
+
+    const purchaseIds = allPurchases.map((p) => p.id);
+    const allItems = await db
+      .select()
+      .from(purchaseItems)
+      .where(inArray(purchaseItems.purchaseId, purchaseIds));
+
+    return allPurchases.map((p) => ({
+      ...p,
+      items: allItems.filter((item) => item.purchaseId === p.id),
+    }));
   }
 
   // Stock Movements
@@ -386,12 +406,12 @@ export class SqliteStorage implements IStorage {
     return created;
   }
 
-  async getStockMovements(ingredientId?: string): Promise<StockMovement[]> {
-    if (ingredientId) {
+  async getStockMovements(itemId?: string): Promise<StockMovement[]> {
+    if (itemId) {
       return await db
         .select()
         .from(stockMovements)
-        .where(eq(stockMovements.ingredientId, ingredientId))
+        .where(eq(stockMovements.itemId, itemId))
         .orderBy(desc(stockMovements.createdAt));
     }
     return await db
@@ -404,29 +424,27 @@ export class SqliteStorage implements IStorage {
   async adjustStock(adjustment: StockAdjustment): Promise<void> {
     const quantity = toNum(adjustment.quantity);
 
-    // The transaction callback only receives `tx`.
-    // The inner function has access to `adjustment` and `quantity` from the outer scope.
     db.transaction((tx) => {
       if (quantity > 0) {
-        // Positive adjustment - add inventory lot
         tx.insert(inventoryLots)
           .values({
-            ingredientId: adjustment.ingredientId,
+            itemId: adjustment.itemId,
             quantity,
-            unitCost: 0, // Adjustment items have no cost
+            unitCost: 0,
           })
           .run();
       } else {
-        // Negative adjustment - consume inventory via FIFO
         const lots = tx
           .select()
           .from(inventoryLots)
-          .where(eq(inventoryLots.ingredientId, adjustment.ingredientId))
+          .where(eq(inventoryLots.itemId, adjustment.itemId))
           .orderBy(asc(inventoryLots.purchasedAt))
           .all();
 
-        // Check if we have enough inventory
-        const totalAvailable = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+        const totalAvailable = lots.reduce(
+          (sum, lot) => sum + lot.quantity,
+          0
+        );
         const requiredQty = Math.abs(quantity);
 
         if (totalAvailable < requiredQty) {
@@ -439,14 +457,11 @@ export class SqliteStorage implements IStorage {
 
         for (const lot of lots) {
           if (remaining <= 0) break;
-
           const lotQuantity = lot.quantity;
           const consumed = Math.min(remaining, lotQuantity);
 
           tx.update(inventoryLots)
-            .set({
-              quantity: lotQuantity - consumed,
-            })
+            .set({ quantity: lotQuantity - consumed })
             .where(eq(inventoryLots.id, lot.id))
             .run();
 
@@ -454,11 +469,10 @@ export class SqliteStorage implements IStorage {
         }
       }
 
-      // Create stock movement record
       tx.insert(stockMovements)
         .values({
           kind: quantity > 0 ? "ADJUSTMENT" : "WASTAGE",
-          ingredientId: adjustment.ingredientId,
+          itemId: adjustment.itemId,
           quantity,
           note: adjustment.note,
         })
@@ -466,94 +480,105 @@ export class SqliteStorage implements IStorage {
     });
   }
 
-  // Sales (transaction with FIFO COGS calculation)
+  // Sales (transaction with recursive FIFO COGS calculation)
   async createSale(sale: NewSale, userId: string): Promise<Sale> {
-    return sqlite.transaction(() => {
+    const createdSale = sqlite.transaction(() => {
       let totalRevenue = 0;
       let totalCogs = 0;
       const saleItemsData = [];
-      const stockMovementsData = [];
+      const stockMovementsToCreate: Omit<
+        InsertStockMovement,
+        "id" | "createdAt" | "reference"
+      >[] = [];
 
-      // Process each sale item - all calculations inside transaction
+      const consumeItemRecursive = (
+        itemId: string,
+        quantityToConsume: number
+      ): number => {
+        let calculatedCost = 0;
+
+        const recipe = db
+          .select()
+          .from(recipeItems)
+          .where(eq(recipeItems.parentItemId, itemId))
+          .all();
+
+        if (recipe.length > 0) {
+          // It's a MANUFACTURED item, recurse through its components
+          for (const component of recipe) {
+            const requiredChildQty = component.quantity * quantityToConsume;
+            calculatedCost += consumeItemRecursive(
+              component.childItemId,
+              requiredChildQty
+            );
+          }
+        } else {
+          // It's a RAW item, consume from inventory lots (base case)
+          const lots = db
+            .select()
+            .from(inventoryLots)
+            .where(eq(inventoryLots.itemId, itemId))
+            .orderBy(asc(inventoryLots.purchasedAt))
+            .all();
+
+          const totalAvailable = lots.reduce(
+            (sum, lot) => sum + lot.quantity,
+            0
+          );
+          if (totalAvailable < quantityToConsume) {
+            throw new Error(
+              `Insufficient inventory for item ID ${itemId}. Available: ${totalAvailable}, Required: ${quantityToConsume}`
+            );
+          }
+
+          let remainingToConsume = quantityToConsume;
+          for (const lot of lots) {
+            if (remainingToConsume <= 0) break;
+
+            const consumed = Math.min(remainingToConsume, lot.quantity);
+            calculatedCost += consumed * lot.unitCost;
+
+            db.update(inventoryLots)
+              .set({ quantity: lot.quantity - consumed })
+              .where(eq(inventoryLots.id, lot.id))
+              .run();
+
+            remainingToConsume -= consumed;
+
+            stockMovementsToCreate.push({
+              kind: "SALE_CONSUME",
+              itemId: itemId,
+              quantity: -consumed,
+            });
+          }
+        }
+        return calculatedCost;
+      };
+
       for (const item of sale.items) {
-        // Get product inside transaction
         const product = db
           .select()
-          .from(products)
-          .where(eq(products.id, item.productId))
+          .from(items)
+          .where(eq(items.id, item.itemId))
           .get();
-        if (!product) throw new Error(`Product not found: ${item.productId}`);
+        if (!product || product.type !== "SELLABLE" || !product.price) {
+          throw new Error(`Item not found or not sellable: ${item.itemId}`);
+        }
 
         const unitPrice = product.price;
         const lineTotal = unitPrice * item.qty;
         totalRevenue += lineTotal;
 
         saleItemsData.push({
-          productId: item.productId,
+          itemId: item.itemId,
           qty: item.qty,
           unitPrice,
           lineTotal,
         });
 
-        // Get recipe inside transaction
-        const recipe = db
-          .select()
-          .from(recipeItems)
-          .where(eq(recipeItems.productId, item.productId))
-          .all();
-
-        for (const recipeItem of recipe) {
-          const requiredQty = recipeItem.quantity * item.qty;
-          let remaining = requiredQty;
-
-          // Get inventory lots for this ingredient (FIFO order) inside transaction
-          const lots = db
-            .select()
-            .from(inventoryLots)
-            .where(eq(inventoryLots.ingredientId, recipeItem.ingredientId))
-            .orderBy(asc(inventoryLots.purchasedAt))
-            .all();
-
-          // Check if we have enough inventory
-          const totalAvailable = lots.reduce(
-            (sum, lot) => sum + lot.quantity,
-            0
-          );
-          if (totalAvailable < requiredQty) {
-            throw new Error(
-              `Insufficient inventory for ingredient. Available: ${totalAvailable}, Required: ${requiredQty}`
-            );
-          }
-
-          // Consume inventory using FIFO
-          for (const lot of lots) {
-            if (remaining <= 0) break;
-
-            const consumed = Math.min(remaining, lot.quantity);
-            totalCogs += consumed * lot.unitCost;
-
-            // Update lot quantity immediately
-            db.update(inventoryLots)
-              .set({
-                quantity: lot.quantity - consumed,
-              })
-              .where(eq(inventoryLots.id, lot.id))
-              .run();
-
-            remaining -= consumed;
-
-            // Queue stock movement for consumption
-            stockMovementsData.push({
-              kind: "SALE_CONSUME" as const,
-              ingredientId: recipeItem.ingredientId,
-              quantity: -consumed, // Negative for consumption
-              reference: "", // Will update with sale ID
-            });
-          }
-        }
+        totalCogs += consumeItemRecursive(item.itemId, item.qty);
       }
 
-      // Create the sale record
       const created = db
         .insert(sales)
         .values({
@@ -570,7 +595,6 @@ export class SqliteStorage implements IStorage {
         throw new Error("Failed to create sale");
       }
 
-      // Create sale items
       for (const itemData of saleItemsData) {
         db.insert(saleItems)
           .values({
@@ -580,8 +604,7 @@ export class SqliteStorage implements IStorage {
           .run();
       }
 
-      // Create stock movements with actual sale ID
-      for (const movement of stockMovementsData) {
+      for (const movement of stockMovementsToCreate) {
         db.insert(stockMovements)
           .values({
             ...movement,
@@ -592,6 +615,8 @@ export class SqliteStorage implements IStorage {
 
       return created;
     })();
+
+    return createdSale;
   }
 
   async getSales(from?: Date, to?: Date): Promise<Sale[]> {
@@ -612,13 +637,11 @@ export class SqliteStorage implements IStorage {
   }
 
   async getSaleItems(saleId: string): Promise<SaleItem[]> {
-    return await db
-      .select()
-      .from(saleItems)
-      .where(eq(saleItems.saleId, saleId));
+    return await db.select().from(saleItems).where(eq(saleItems.saleId, saleId));
   }
 
-  // Cash Sessions
+  // Cash Sessions (methods using 'itemId' need to be checked)
+  // I will update openSessionAndMoveStock, createInventorySnapshots, updateStockForSession
   async getActiveCashSession(): Promise<CashSession | undefined> {
     const [session] = await db
       .select()
@@ -662,7 +685,6 @@ export class SqliteStorage implements IStorage {
     userId: string
   ): Promise<CashSession> {
     return sqlite.transaction(() => {
-      // 1. Create the session
       const session = db
         .insert(cashSessions)
         .values({
@@ -677,10 +699,7 @@ export class SqliteStorage implements IStorage {
         throw new Error("Failed to create cash session");
       }
 
-      // 2. Update stock levels (will throw if insufficient)
       this.updateStockForSession(session.id, sessionData.inventory, "OPENING");
-
-      // 3. Create inventory snapshots
       this.createInventorySnapshots(
         session.id,
         sessionData.inventory,
@@ -700,42 +719,27 @@ export class SqliteStorage implements IStorage {
 
   async createInventorySnapshots(
     sessionId: string,
-    snapshots: { ingredientId: string; quantity: string }[],
+    snapshots: { itemId: string; quantity: string }[],
     type: "OPENING" | "CLOSING"
   ): Promise<void> {
-    console.log("Creating inventory snapshots:", {
-      sessionId,
-      type,
-      snapshots,
-    });
+    if (snapshots.length === 0) return;
 
     const snapshotData = snapshots.map((s) => ({
       sessionId,
-      ingredientId: s.ingredientId,
+      itemId: s.itemId,
       quantity: toNum(s.quantity),
       type,
     }));
 
-    console.log("Prepared snapshot data:", snapshotData);
-
-    if (snapshotData.length > 0) {
-      const result = await db
-        .insert(sessionInventorySnapshots)
-        .values(snapshotData)
-        .returning();
-      console.log("Created snapshots:", result);
-    } else {
-      console.log("No snapshots to create");
-    }
+    await db.insert(sessionInventorySnapshots).values(snapshotData);
   }
 
-  // Session stock management
   async updateStockForSession(
     sessionId: string,
-    snapshots: { ingredientId: string; quantity: string }[],
+    snapshots: { itemId: string; quantity: string }[],
     type: "OPENING" | "CLOSING"
   ): Promise<void> {
-    const updateStockForSessionTransaction = db.transaction((tx) => {
+    db.transaction((tx) => {
       for (const snapshot of snapshots) {
         const quantity = toNum(snapshot.quantity);
         if (quantity === 0) continue;
@@ -744,11 +748,10 @@ export class SqliteStorage implements IStorage {
         const movementQuantity = isOpening ? -quantity : quantity;
 
         if (isOpening) {
-          // Consume inventory via FIFO for session opening
           const lots = tx
             .select()
             .from(inventoryLots)
-            .where(eq(inventoryLots.ingredientId, snapshot.ingredientId))
+            .where(eq(inventoryLots.itemId, snapshot.itemId))
             .orderBy(asc(inventoryLots.purchasedAt))
             .all();
 
@@ -758,7 +761,7 @@ export class SqliteStorage implements IStorage {
           );
           if (totalAvailable < quantity) {
             throw new Error(
-              `Insufficient inventory to open session. Available: ${totalAvailable}, Required: ${quantity}`
+              `Insufficient inventory for session. Available: ${totalAvailable}, Required: ${quantity}`
             );
           }
 
@@ -769,42 +772,36 @@ export class SqliteStorage implements IStorage {
             const consumed = Math.min(remaining, lotQuantity);
 
             tx.update(inventoryLots)
-              .set({
-                quantity: lotQuantity - consumed,
-              })
+              .set({ quantity: lotQuantity - consumed })
               .where(eq(inventoryLots.id, lot.id))
               .run();
 
             remaining -= consumed;
           }
         } else {
-          // Add inventory back for session closing
           tx.insert(inventoryLots)
             .values({
-              ingredientId: snapshot.ingredientId,
+              itemId: snapshot.itemId,
               quantity,
-              unitCost: 0, // Returned items have no new cost
+              unitCost: 0,
               purchasedAt: new Date(),
             })
             .run();
         }
 
-        // Create stock movement record
         tx.insert(stockMovements)
           .values({
             kind: isOpening ? "SESSION_OUT" : "SESSION_IN",
-            ingredientId: snapshot.ingredientId,
+            itemId: snapshot.itemId,
             quantity: movementQuantity,
             reference: sessionId,
           })
           .run();
       }
     });
-
-    updateStockForSessionTransaction();
   }
 
-  // Expenses
+  // Expenses (no change needed)
   async createExpense(expense: InsertExpense): Promise<Expense> {
     const [created] = await db
       .insert(expenses)
@@ -820,11 +817,11 @@ export class SqliteStorage implements IStorage {
     return await db.select().from(expenses).orderBy(desc(expenses.createdAt));
   }
 
-  // Reports (convert numbers to strings for compatibility)
+  // Reports
   async getCurrentStock(): Promise<
     {
-      ingredientId: string;
-      ingredientName: string;
+      itemId: string;
+      itemName: string;
       totalQuantity: string;
       unit: string;
       lowStockLevel: string | null;
@@ -832,21 +829,16 @@ export class SqliteStorage implements IStorage {
   > {
     const result = await db
       .select({
-        ingredientId: ingredients.id,
-        ingredientName: ingredients.name,
+        itemId: items.id,
+        itemName: items.name,
         totalQuantity: sum(inventoryLots.quantity),
-        unit: ingredients.unit,
-        lowStockLevel: ingredients.lowStockLevel,
+        unit: items.unit,
+        lowStockLevel: items.lowStockLevel,
       })
-      .from(ingredients)
-      .leftJoin(inventoryLots, eq(ingredients.id, inventoryLots.ingredientId))
-      .groupBy(
-        ingredients.id,
-        ingredients.name,
-        ingredients.unit,
-        ingredients.lowStockLevel
-      )
-      .orderBy(asc(ingredients.name));
+      .from(items)
+      .leftJoin(inventoryLots, eq(items.id, inventoryLots.itemId))
+      .groupBy(items.id, items.name, items.unit, items.lowStockLevel)
+      .orderBy(asc(items.name));
 
     return result.map((row) => ({
       ...row,
@@ -855,10 +847,10 @@ export class SqliteStorage implements IStorage {
     }));
   }
 
-  async getLowStockIngredients(): Promise<
+  async getLowStockItems(): Promise<
     {
-      ingredientId: string;
-      ingredientName: string;
+      itemId: string;
+      itemName: string;
       totalQuantity: string;
       unit: string;
       lowStockLevel: string;
@@ -866,24 +858,22 @@ export class SqliteStorage implements IStorage {
   > {
     const result = await db
       .select({
-        ingredientId: inventoryLots.ingredientId,
-        ingredientName: ingredients.name,
+        itemId: inventoryLots.itemId,
+        itemName: items.name,
         totalQuantity: sum(inventoryLots.quantity),
-        unit: ingredients.unit,
-        lowStockLevel: ingredients.lowStockLevel,
+        unit: items.unit,
+        lowStockLevel: items.lowStockLevel,
       })
       .from(inventoryLots)
-      .innerJoin(ingredients, eq(inventoryLots.ingredientId, ingredients.id))
-      .where(sql`${ingredients.lowStockLevel} IS NOT NULL`)
+      .innerJoin(items, eq(inventoryLots.itemId, items.id))
+      .where(sql`${items.lowStockLevel} IS NOT NULL`)
       .groupBy(
-        inventoryLots.ingredientId,
-        ingredients.name,
-        ingredients.unit,
-        ingredients.lowStockLevel
+        inventoryLots.itemId,
+        items.name,
+        items.unit,
+        items.lowStockLevel
       )
-      .having(
-        sql`SUM(${inventoryLots.quantity}) < ${ingredients.lowStockLevel}`
-      );
+      .having(sql`SUM(${inventoryLots.quantity}) < ${items.lowStockLevel}`);
 
     return result.map((row) => ({
       ...row,
@@ -899,13 +889,7 @@ export class SqliteStorage implements IStorage {
     orderCount: number;
   }> {
     const { start, end } = todayRange();
-    console.log("Getting KPIs for range:", {
-      start: start.toISOString(),
-      end: end.toISOString(),
-      startUnix: Math.floor(start.getTime() / 1000),
-      endUnix: Math.floor(end.getTime() / 1000),
-    });
-
+    
     const result = await db
       .select({
         revenue: sum(sales.total),
@@ -923,7 +907,7 @@ export class SqliteStorage implements IStorage {
     const data = result[0];
     const revenue = toNum(data?.revenue || 0);
     const cogs = toNum(data?.cogs || 0);
-    const grossMargin = revenue - cogs;
+    const grossMargin = revenue > 0 ? ((revenue - cogs) / revenue) * 100 : 0;
 
     return {
       revenue: toStr(revenue),
@@ -938,38 +922,31 @@ export class SqliteStorage implements IStorage {
     to: Date
   ): Promise<
     {
-      productId: string;
-      productName: string;
+      itemId: string;
+      itemName: string;
       sku: string;
       totalQty: number;
       totalRevenue: string;
     }[]
   > {
-    console.log("Getting top products for range:", {
-      from: from.toISOString(),
-      to: to.toISOString(),
-      fromUnix: Math.floor(from.getTime() / 1000),
-      toUnix: Math.floor(to.getTime() / 1000),
-    });
-
     const result = await db
       .select({
-        productId: saleItems.productId,
-        productName: products.name,
-        sku: products.sku,
+        itemId: saleItems.itemId,
+        itemName: items.name,
+        sku: items.sku,
         totalQty: sum(saleItems.qty),
         totalRevenue: sum(saleItems.lineTotal),
       })
       .from(saleItems)
       .innerJoin(sales, eq(saleItems.saleId, sales.id))
-      .innerJoin(products, eq(saleItems.productId, products.id))
+      .innerJoin(items, eq(saleItems.itemId, items.id))
       .where(
         and(
           sql`${sales.createdAt} >= ${Math.floor(from.getTime() / 1000)}`,
           sql`${sales.createdAt} <= ${Math.floor(to.getTime() / 1000)}`
         )
       )
-      .groupBy(saleItems.productId, products.name, products.sku)
+      .groupBy(saleItems.itemId, items.name, items.sku)
       .orderBy(desc(sum(saleItems.lineTotal)));
 
     return result.map((row) => ({
@@ -982,7 +959,6 @@ export class SqliteStorage implements IStorage {
   async getRecentActivity(limit: number): Promise<any[]> {
     const half = Math.max(1, Math.floor(limit / 2));
 
-    // Get recent sales
     const recentSales = await db
       .select({
         type: sql<string>`'sale'`,
@@ -995,7 +971,6 @@ export class SqliteStorage implements IStorage {
       .orderBy(desc(sales.createdAt))
       .limit(half);
 
-    // Get recent expenses
     const recentExpenses = await db
       .select({
         type: sql<string>`'expense'`,
@@ -1008,7 +983,6 @@ export class SqliteStorage implements IStorage {
       .orderBy(desc(expenses.createdAt))
       .limit(half);
 
-    // Combine and sort
     const combined = [...recentSales, ...recentExpenses]
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
@@ -1018,27 +992,33 @@ export class SqliteStorage implements IStorage {
       amount: toStr(item.amount),
     }));
   }
+
   async getPendingOrders(): Promise<
-    { sale: Sale; items: (SaleItem & { productName: string })[] }[]
+    { sale: Sale; items: (SaleItem & { itemName: string })[] }[]
   > {
     const pendingItems = await db
       .select({
         ...saleItems,
-        productName: products.name,
+        itemName: items.name,
       })
       .from(saleItems)
-      .innerJoin(products, eq(saleItems.productId, products.id))
+      .innerJoin(items, eq(saleItems.itemId, items.id))
       .where(ne(saleItems.status, "DONE"));
     const saleIds = [...new Set(pendingItems.map((i) => i.saleId))];
+    if (saleIds.length === 0) return [];
+
     const pendingSales = await db
       .select()
       .from(sales)
-      .where(inArray(sales.id, saleIds));
+      .where(inArray(sales.id, saleIds))
+      .orderBy(desc(sales.createdAt));
+
     return pendingSales.map((s) => ({
       sale: s,
       items: pendingItems.filter((i) => i.saleId === s.id),
     }));
   }
+
   async updateSaleItemStatus(id: string, status: string): Promise<SaleItem> {
     const validStatuses = ["PENDING", "RECEIVED", "PREPPING", "DONE"];
     if (!validStatuses.includes(status)) {

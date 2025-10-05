@@ -1,9 +1,10 @@
 import Layout from "@/components/Layout";
+import { useAuth } from "@/hooks/use-auth";
+import { Redirect } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DollarSign,
   TrendingUp,
   Percent,
   ShoppingBag,
@@ -30,7 +31,7 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/lib/format";
 
-export default function Dashboard() {
+const AdminDashboard = () => {
   const { data: overview, isLoading: overviewLoading } = useApiQuery(
     ["/api/reports/overview"],
     getOverview
@@ -152,10 +153,7 @@ export default function Dashboard() {
   };
 
   return (
-    <Layout
-      title="Dashboard"
-      description="Overview of your pizza truck operations"
-    >
+    <>
       {/* KPI Cards */}
       <div
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
@@ -186,7 +184,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
+                <TrendingUp className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -274,7 +272,7 @@ export default function Dashboard() {
                     ? formatCurrency(
                         parseFloat(overview.revenue) / overview.orderCount
                       )
-                    : "$0.00"}{" "}
+                    : "R0.00"}{" "}
                   per order
                 </p>
               </div>
@@ -625,6 +623,70 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+    </>
+  );
+};
+
+const CashierDashboard = () => {
+  // ... (Add data fetching for cashier-specific data if needed)
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Link href="/sales">
+            <Button className="w-full" size="lg">
+              <ScanBarcode className="mr-2 h-5 w-5" /> New Sale
+            </Button>
+          </Link>
+          <Link href="/sessions">
+            <Button className="w-full" variant="outline" size="lg">
+              <Package className="mr-2 h-5 w-5" /> Manage Session
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Session</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* ... (Display current session status) ... */}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default function Dashboard() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return null; // Or a loading spinner
+  }
+
+  const renderDashboard = () => {
+    switch (user.role) {
+      case "ADMIN":
+        return <AdminDashboard />;
+      case "CASHIER":
+        return <CashierDashboard />;
+      case "KITCHEN":
+        return <Redirect to="/kitchen" />;
+      default:
+        return <div>Welcome!</div>;
+    }
+  };
+
+  return (
+    <Layout
+      title="Dashboard"
+      description="Overview of your pizza truck operations"
+    >
+      {renderDashboard()}
     </Layout>
   );
 }

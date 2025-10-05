@@ -25,7 +25,6 @@ import {
   Coins,
   Play,
   Square,
-  DollarSign,
   CreditCard,
   TrendingUp,
   TrendingDown,
@@ -39,7 +38,7 @@ import {
   openCashSession,
   closeCashSession,
   getSales,
-  getIngredients,
+  getItems,
 } from "@/lib/api";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -68,10 +67,11 @@ export default function Sessions() {
     queryFn: () => getCashSessions(),
   });
 
-  const { data: ingredients = [] } = useQuery({
-    queryKey: ["/api/ingredients"],
-    queryFn: getIngredients,
+  const { data: allItems = [] } = useQuery({
+    queryKey: ["/api/items"],
+    queryFn: getItems,
   });
+  const rawItems = allItems.filter((item) => item.type === "RAW");
 
   const { data: todaySales = [] } = useQuery({
     queryKey: ["/api/sales", "today"],
@@ -186,7 +186,7 @@ export default function Sessions() {
       activeSession,
       openingFloat,
       inventorySnapshots,
-      ingredients,
+      rawItems,
     });
 
     if (activeSession) {
@@ -207,20 +207,20 @@ export default function Sessions() {
       return;
     }
 
-    if (!ingredients || ingredients.length === 0) {
+    if (!rawItems || rawItems.length === 0) {
       toast({
         title: "Error",
-        description: "No ingredients available. Please add ingredients first.",
+        description: "No raw items available. Please add items first.",
         variant: "destructive",
       });
       return;
     }
 
     // Filter out empty inventory entries
-    const inventory = ingredients
-      .map((ingredient) => ({
-        ingredientId: ingredient.id,
-        quantity: inventorySnapshots[ingredient.id] || "",
+    const inventory = rawItems
+      .map((item) => ({
+        itemId: item.id,
+        quantity: inventorySnapshots[item.id] || "",
       }))
       .filter((item) => item.quantity !== "");
 
@@ -256,10 +256,10 @@ export default function Sessions() {
     }
 
     // Filter out empty inventory entries
-    const inventory = ingredients
-      .map((ingredient) => ({
-        ingredientId: ingredient.id,
-        quantity: inventorySnapshots[ingredient.id] || "",
+    const inventory = rawItems
+      .map((item) => ({
+        itemId: item.id,
+        quantity: inventorySnapshots[item.id] || "",
       }))
       .filter((item) => item.quantity !== "");
 
@@ -282,8 +282,8 @@ export default function Sessions() {
     });
   };
 
-  const handleSnapshotChange = (ingredientId: string, value: string) => {
-    setInventorySnapshots((prev) => ({ ...prev, [ingredientId]: value }));
+  const handleSnapshotChange = (itemId: string, value: string) => {
+    setInventorySnapshots((prev) => ({ ...prev, [itemId]: value }));
   };
 
   const calculateSessionStats = (session: any) => {
@@ -389,7 +389,7 @@ export default function Sessions() {
                                 {formatCurrency(stats.totalSales)}
                               </p>
                             </div>
-                            <DollarSign className="h-8 w-8 text-green-600" />
+                            <TrendingUp className="h-8 w-8 text-green-600" />
                           </div>
                         </CardContent>
                       </Card>
@@ -507,30 +507,30 @@ export default function Sessions() {
 
                     <h4 className="font-medium">Closing Inventory Count</h4>
                     <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
-                      {ingredients.map((ingredient: any) => (
+                      {rawItems.map((item: any) => (
                         <div
-                          key={ingredient.id}
+                          key={item.id}
                           className="grid grid-cols-3 gap-2 items-center"
                         >
                           <Label
-                            htmlFor={`close-item-${ingredient.id}`}
+                            htmlFor={`close-item-${item.id}`}
                             className="col-span-2"
                           >
-                            {ingredient.name}
+                            {item.name}
                           </Label>
                           <Input
-                            id={`close-item-${ingredient.id}`}
+                            id={`close-item-${item.id}`}
                             type="number"
                             step="0.01"
                             min="0"
-                            value={inventorySnapshots[ingredient.id] || ""}
+                            value={inventorySnapshots[item.id] || ""}
                             onChange={(e) =>
                               handleSnapshotChange(
-                                ingredient.id,
+                                item.id,
                                 e.target.value
                               )
                             }
-                            placeholder={ingredient.unit}
+                            placeholder={item.unit}
                           />
                         </div>
                       ))}
@@ -663,30 +663,30 @@ export default function Sessions() {
 
                       <h4 className="font-medium">Opening Inventory Count</h4>
                       <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
-                        {ingredients.map((ingredient: any) => (
+                        {rawItems.map((item: any) => (
                           <div
-                            key={ingredient.id}
+                            key={item.id}
                             className="grid grid-cols-3 gap-2 items-center"
                           >
                             <Label
-                              htmlFor={`item-${ingredient.id}`}
+                              htmlFor={`item-${item.id}`}
                               className="col-span-2"
                             >
-                              {ingredient.name}
+                              {item.name}
                             </Label>
                             <Input
-                              id={`item-${ingredient.id}`}
+                              id={`item-${item.id}`}
                               type="number"
                               step="0.01"
                               min="0"
-                              value={inventorySnapshots[ingredient.id] || ""}
+                              value={inventorySnapshots[item.id] || ""}
                               onChange={(e) =>
                                 handleSnapshotChange(
-                                  ingredient.id,
+                                  item.id,
                                   e.target.value
                                 )
                               }
-                              placeholder={ingredient.unit}
+                              placeholder={item.unit}
                             />
                           </div>
                         ))}

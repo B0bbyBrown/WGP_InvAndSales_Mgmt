@@ -6,7 +6,12 @@ export async function apiRequest(method: string, url: string, data?: any) {
     body: data ? JSON.stringify(data) : undefined,
   };
 
-  const response = await fetch(`http://localhost:5082${url}`, options); // Adjust base URL if needed
+  const baseUrl =
+    import.meta.env.MODE === "development"
+      ? `${window.location.protocol}//${window.location.hostname}:5082`
+      : window.location.origin;
+
+  const response = await fetch(`${baseUrl}${url}`, options);
 
   if (!response.ok) {
     const error = await response.json();
@@ -22,12 +27,14 @@ import {
   StockAdjustment,
   OpenSessionRequest,
   CloseSessionRequest,
+  NewItem,
 } from "@shared/schema";
 
-// Ingredients
-export const getIngredients = () => apiRequest("GET", "/api/ingredients");
-export const createIngredient = (data: any) =>
-  apiRequest("POST", "/api/ingredients", data);
+// Items
+export const getItems = () => apiRequest("GET", "/api/items");
+export const createItem = (data: NewItem) => apiRequest("POST", "/api/items", data);
+export const getItemRecipe = (itemId: string) =>
+  apiRequest("GET", `/api/items/${itemId}/recipe`);
 
 // Suppliers
 export const getSuppliers = () => apiRequest("GET", "/api/suppliers");
@@ -45,13 +52,6 @@ export const createSupplier = async (data: {
   return response.json();
 };
 
-// Products
-export const getProducts = () => apiRequest("GET", "/api/products");
-export const createProduct = (data: any) =>
-  apiRequest("POST", "/api/products", data);
-export const getProductRecipe = (productId: string) =>
-  apiRequest("GET", `/api/products/${productId}/recipe`);
-
 // Purchases
 export const getPurchases = () => apiRequest("GET", "/api/purchases");
 export const createPurchase = (data: NewPurchase) =>
@@ -62,10 +62,10 @@ export const getCurrentStock = () => apiRequest("GET", "/api/stock/current");
 export const getLowStock = () => apiRequest("GET", "/api/stock/low");
 export const adjustStock = (data: StockAdjustment) =>
   apiRequest("POST", "/api/stock/adjust", data);
-export const getStockMovements = (ingredientId?: string) =>
+export const getStockMovements = (itemId?: string) =>
   apiRequest(
     "GET",
-    `/api/stock/movements${ingredientId ? `?ingredientId=${ingredientId}` : ""}`
+    `/api/stock/movements${itemId ? `?itemId=${itemId}` : ""}`
   );
 
 // Sales

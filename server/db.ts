@@ -38,8 +38,7 @@ if (process.env.RESET_DB === "true") {
       DROP TABLE IF EXISTS purchase_items;
       DROP TABLE IF EXISTS purchases;
       DROP TABLE IF EXISTS inventory_lots;
-      DROP TABLE IF EXISTS products;
-      DROP TABLE IF EXISTS ingredients;
+      DROP TABLE IF EXISTS items;
       DROP TABLE IF EXISTS suppliers;
       DROP TABLE IF EXISTS expenses;
       DROP TABLE IF EXISTS users;
@@ -68,10 +67,13 @@ try {
       updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS ingredients (
+    CREATE TABLE IF NOT EXISTS items (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       name TEXT UNIQUE NOT NULL,
+      sku TEXT UNIQUE,
+      type TEXT NOT NULL CHECK(type IN ('RAW', 'MANUFACTURED', 'SELLABLE')),
       unit TEXT NOT NULL,
+      price REAL,
       low_stock_level REAL,
       created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
       updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
@@ -86,16 +88,6 @@ try {
       updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name TEXT UNIQUE NOT NULL,
-      sku TEXT UNIQUE NOT NULL,
-      price REAL NOT NULL,
-      active INTEGER DEFAULT 1 NOT NULL,
-      created_at INTEGER DEFAULT (unixepoch()) NOT NULL,
-      updated_at INTEGER DEFAULT (unixepoch()) NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS purchases (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       supplier_id TEXT REFERENCES suppliers(id),
@@ -106,14 +98,14 @@ try {
     CREATE TABLE IF NOT EXISTS purchase_items (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       purchase_id TEXT NOT NULL REFERENCES purchases(id),
-      ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+      item_id TEXT NOT NULL REFERENCES items(id),
       quantity REAL NOT NULL,
       total_cost REAL NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS inventory_lots (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+      item_id TEXT NOT NULL REFERENCES items(id),
       quantity REAL NOT NULL,
       unit_cost REAL NOT NULL,
       purchased_at INTEGER DEFAULT (unixepoch()) NOT NULL,
@@ -123,8 +115,8 @@ try {
 
     CREATE TABLE IF NOT EXISTS recipe_items (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      product_id TEXT NOT NULL REFERENCES products(id),
-      ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+      parent_item_id TEXT NOT NULL REFERENCES items(id),
+      child_item_id TEXT NOT NULL REFERENCES items(id),
       quantity REAL NOT NULL
     );
 
@@ -152,16 +144,17 @@ try {
     CREATE TABLE IF NOT EXISTS sale_items (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       sale_id TEXT NOT NULL REFERENCES sales(id),
-      product_id TEXT NOT NULL REFERENCES products(id),
+      item_id TEXT NOT NULL REFERENCES items(id),
       qty INTEGER NOT NULL,
       unit_price REAL NOT NULL,
-      line_total REAL NOT NULL
+      line_total REAL NOT NULL,
+      status TEXT DEFAULT 'PENDING' NOT NULL CHECK(status IN ('PENDING', 'RECEIVED', 'PREPPING', 'DONE'))
     );
 
     CREATE TABLE IF NOT EXISTS stock_movements (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       kind TEXT NOT NULL CHECK(kind IN ('PURCHASE', 'SALE_CONSUME', 'ADJUSTMENT', 'WASTAGE', 'SESSION_OUT', 'SESSION_IN')),
-      ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+      item_id TEXT NOT NULL REFERENCES items(id),
       quantity REAL NOT NULL,
       reference TEXT,
       note TEXT,
@@ -179,7 +172,7 @@ try {
     CREATE TABLE IF NOT EXISTS session_inventory_snapshots (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       session_id TEXT NOT NULL REFERENCES cash_sessions(id),
-      ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+      item_id TEXT NOT NULL REFERENCES items(id),
       quantity REAL NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('OPENING', 'CLOSING')),
       created_at INTEGER DEFAULT (unixepoch()) NOT NULL

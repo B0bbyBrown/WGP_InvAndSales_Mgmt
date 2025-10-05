@@ -29,13 +29,18 @@ export const users = sqliteTable("users", {
     .notNull(),
 });
 
-// Ingredients table
-export const ingredients = sqliteTable("ingredients", {
+// Unified Items table
+export const items = sqliteTable("items", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: text("name").unique().notNull(),
+  sku: text("sku").unique(),
+  type: text("type", {
+    enum: ["RAW", "MANUFACTURED", "SELLABLE"],
+  }).notNull(),
   unit: text("unit").notNull(),
+  price: real("price"), // Only for SELLABLE items
   lowStockLevel: real("low_stock_level"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .default(sql`(unixepoch())`)
@@ -61,33 +66,16 @@ export const suppliers = sqliteTable("suppliers", {
     .notNull(),
 });
 
-// Products table
-export const products = sqliteTable("products", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  name: text("name").unique().notNull(),
-  sku: text("sku").unique().notNull(),
-  price: real("price").notNull(),
-  active: integer("active", { mode: "boolean" }).default(true).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .default(sql`(unixepoch())`)
-    .notNull(),
-});
-
 // Recipe items (BOM)
 export const recipeItems = sqliteTable("recipe_items", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  productId: text("product_id")
-    .references(() => products.id)
+  parentItemId: text("parent_item_id")
+    .references(() => items.id)
     .notNull(),
-  ingredientId: text("ingredient_id")
-    .references(() => ingredients.id)
+  childItemId: text("child_item_id")
+    .references(() => items.id)
     .notNull(),
   quantity: real("quantity").notNull(),
 });
@@ -139,8 +127,8 @@ export const saleItems = sqliteTable(
     saleId: text("sale_id")
       .references(() => sales.id)
       .notNull(),
-    productId: text("product_id")
-      .references(() => products.id)
+    itemId: text("item_id")
+      .references(() => items.id)
       .notNull(),
     qty: integer("qty").notNull(),
     unitPrice: real("unit_price").notNull(),
@@ -175,8 +163,8 @@ export const purchaseItems = sqliteTable("purchase_items", {
   purchaseId: text("purchase_id")
     .references(() => purchases.id)
     .notNull(),
-  ingredientId: text("ingredient_id")
-    .references(() => ingredients.id)
+  itemId: text("item_id")
+    .references(() => items.id)
     .notNull(),
   quantity: real("quantity").notNull(),
   totalCost: real("total_cost").notNull(),
@@ -187,8 +175,8 @@ export const inventoryLots = sqliteTable("inventory_lots", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  ingredientId: text("ingredient_id")
-    .references(() => ingredients.id)
+  itemId: text("item_id")
+    .references(() => items.id)
     .notNull(),
   quantity: real("quantity").notNull(),
   unitCost: real("unit_cost").notNull(),
@@ -218,8 +206,8 @@ export const stockMovements = sqliteTable("stock_movements", {
       "SESSION_IN",
     ],
   }).notNull(),
-  ingredientId: text("ingredient_id")
-    .references(() => ingredients.id)
+  itemId: text("item_id")
+    .references(() => items.id)
     .notNull(),
   quantity: real("quantity").notNull(),
   reference: text("reference"),
@@ -252,8 +240,8 @@ export const sessionInventorySnapshots = sqliteTable(
     sessionId: text("session_id")
       .references(() => cashSessions.id)
       .notNull(),
-    ingredientId: text("ingredient_id")
-      .references(() => ingredients.id)
+    itemId: text("item_id")
+      .references(() => items.id)
       .notNull(),
     quantity: real("quantity").notNull(),
     type: text("type", { enum: ["OPENING", "CLOSING"] }).notNull(),
@@ -270,19 +258,13 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
-export const insertIngredientSchema = createInsertSchema(ingredients).omit({
+export const insertItemSchema = createInsertSchema(items).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
 export const insertSupplierSchema = createInsertSchema(suppliers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -349,9 +331,15 @@ export const newPurchaseSchema = z.object({
   notes: z.string().optional(),
   items: z.array(
     z.object({
-      ingredientId: z.string().uuid(),
-      quantity: z.string().min(1),
-      totalCost: z.string().min(1),
+      itemId: z.string().uuid(),
+      quantity: z.preprocess(
+        (val) => parseFloat(String(val)),
+        z.number().positive("Quantity must be positive")
+      ),
+      totalCost: z.preprocess(
+        (val) => parseFloat(String(val)),
+        z.number().positive("Total cost must be positive")
+      ),
     })
   ),
 });
@@ -361,14 +349,14 @@ export const newSaleSchema = z.object({
   paymentType: z.enum(["CASH", "CARD", "OTHER"]),
   items: z.array(
     z.object({
-      productId: z.string().uuid(),
+      itemId: z.string().uuid(),
       qty: z.number().int().positive(),
     })
   ),
 });
 
 export const stockAdjustmentSchema = z.object({
-  ingredientId: z.string().uuid(),
+  itemId: z.string().uuid(),
   quantity: z.string().min(1),
   note: z.string().optional(),
 });
@@ -382,7 +370,7 @@ export const openSessionSchema = z.object({
   inventory: z
     .array(
       z.object({
-        ingredientId: z.string().uuid(),
+        itemId: z.string().uuid(),
         quantity: z.string().min(1, "Quantity is required"),
       })
     )
@@ -398,25 +386,30 @@ export const closeSessionSchema = z.object({
   inventory: z
     .array(
       z.object({
-        ingredientId: z.string().uuid(),
+        itemId: z.string().uuid(),
         quantity: z.string().min(1, "Quantity is required"),
       })
     )
     .min(1, "At least one inventory item is required"),
 });
 
-export const newProductSchema = z.object({
+export const newItemSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  sku: z.string().min(1, "SKU is required"),
+  sku: z.string().optional(),
+  type: z.enum(["RAW", "MANUFACTURED", "SELLABLE"]),
+  unit: z.string().min(1, "Unit is required"),
   price: z.preprocess(
     (val) => (val ? parseFloat(String(val)) : undefined),
-    z.number({ required_error: "Price is required" }).min(0)
+    z.number().min(0).optional()
   ),
-  active: z.boolean().default(true),
+  lowStockLevel: z.preprocess(
+    (val) => (val ? parseFloat(String(val)) : undefined),
+    z.number().min(0).optional()
+  ),
   recipe: z
     .array(
       z.object({
-        ingredientId: z.string().uuid(),
+        childItemId: z.string().uuid(),
         quantity: z.preprocess(
           (val) => (val ? parseFloat(String(val)) : undefined),
           z.number({ required_error: "Quantity is required" }).min(0)
@@ -429,13 +422,13 @@ export const newProductSchema = z.object({
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type Ingredient = typeof ingredients.$inferSelect;
-export type InsertIngredient = z.infer<typeof insertIngredientSchema>;
+export type Item = typeof items.$inferSelect;
+export type InsertItem = z.infer<typeof insertItemSchema>;
 export type Supplier = typeof suppliers.$inferSelect;
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
-export type Product = typeof products.$inferSelect;
-export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type Purchase = typeof purchases.$inferSelect;
+export type Purchase = typeof purchases.$inferSelect & {
+  items?: PurchaseItem[];
+};
 export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
 export type PurchaseItem = typeof purchaseItems.$inferSelect;
 export type InsertPurchaseItem = z.infer<typeof insertPurchaseItemSchema>;
@@ -463,4 +456,4 @@ export type NewSale = z.infer<typeof newSaleSchema>;
 export type StockAdjustment = z.infer<typeof stockAdjustmentSchema>;
 export type OpenSessionRequest = z.infer<typeof openSessionSchema>;
 export type CloseSessionRequest = z.infer<typeof closeSessionSchema>;
-export type NewProduct = z.infer<typeof newProductSchema>;
+export type NewItem = z.infer<typeof newItemSchema>;

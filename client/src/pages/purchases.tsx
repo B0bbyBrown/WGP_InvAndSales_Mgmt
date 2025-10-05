@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -31,16 +32,14 @@ import {
   Plus,
   Trash2,
   Package,
-  DollarSign,
   Calendar,
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   getPurchases,
   createPurchase,
-  getIngredients,
+  getItems,
   getSuppliers,
-  createIngredient,
   createSupplier,
 } from "@/lib/api";
 import { useState } from "react";
@@ -49,24 +48,19 @@ import { queryClient } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 interface PurchaseItem {
-  ingredientId: string;
+  itemId: string;
   quantity: string;
   totalCost: string;
 }
 
 export default function Purchases() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isAddIngredientDialogOpen, setIsAddIngredientDialogOpen] =
-    useState(false);
-  const [newIngredientName, setNewIngredientName] = useState("");
-  const [newIngredientUnit, setNewIngredientUnit] = useState("");
-  const [newIngredientLowStock, setNewIngredientLowStock] = useState("");
 
   // Form state
   const [selectedSupplier, setSelectedSupplier] = useState("");
   const [notes, setNotes] = useState("");
   const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([
-    { ingredientId: "", quantity: "", totalCost: "" },
+    { itemId: "", quantity: "", totalCost: "" },
   ]);
 
   // New Supplier Form State
@@ -82,10 +76,11 @@ export default function Purchases() {
     queryFn: () => getPurchases(),
   });
 
-  const { data: ingredients = [] } = useQuery({
-    queryKey: ["/api/ingredients"],
-    queryFn: () => getIngredients(),
+  const { data: allItems = [] } = useQuery({
+    queryKey: ["/api/items"],
+    queryFn: () => getItems(),
   });
+  const rawItems = allItems.filter((item) => item.type === "RAW");
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["/api/suppliers"],
@@ -94,12 +89,14 @@ export default function Purchases() {
 
   const createPurchaseMutation = useMutation({
     mutationFn: createPurchase,
-    onSuccess: () => {
+    onSuccess: (newPurchase) => {
       toast({
         title: "Success",
         description: "Purchase order created successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
+      queryClient.setQueryData(["/api/purchases"], (oldData: any) => {
+        return oldData ? [newPurchase, ...oldData] : [newPurchase];
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/stock/current"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stock/movements"] });
       resetForm();
@@ -109,29 +106,6 @@ export default function Purchases() {
       toast({
         title: "Error",
         description: error.message || "Failed to create purchase order",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createIngredientMutation = useMutation({
-    mutationFn: createIngredient,
-    onSuccess: (newIngredient) => {
-      toast({
-        title: "Success",
-        description: "Ingredient created successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/ingredients"] });
-      setIsAddIngredientDialogOpen(false);
-      setNewIngredientName("");
-      setNewIngredientUnit("");
-      setNewIngredientLowStock("");
-      // Optionally, auto-select the new ingredient in the current item
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create ingredient",
         variant: "destructive",
       });
     },
@@ -162,12 +136,12 @@ export default function Purchases() {
   const resetForm = () => {
     setSelectedSupplier("");
     setNotes("");
-    setPurchaseItems([{ ingredientId: "", quantity: "", totalCost: "" }]);
+    setPurchaseItems([{ itemId: "", quantity: "", totalCost: "" }]);
   };
 
   const handleCreatePurchase = () => {
     const validItems = purchaseItems.filter(
-      (item) => item.ingredientId && item.quantity && item.totalCost
+      (item) => item.itemId && item.quantity && item.totalCost
     );
 
     if (validItems.length === 0) {
@@ -183,24 +157,6 @@ export default function Purchases() {
       supplierId: selectedSupplier || undefined,
       notes: notes || undefined,
       items: validItems,
-    });
-  };
-
-  const handleCreateIngredient = () => {
-    if (!newIngredientName || !newIngredientUnit) {
-      toast({
-        title: "Error",
-        description: "Please enter ingredient name and unit",
-        variant: "destructive",
-      });
-      return;
-    }
-    createIngredientMutation.mutate({
-      name: newIngredientName,
-      unit: newIngredientUnit,
-      low_stock_level: newIngredientLowStock
-        ? parseFloat(newIngredientLowStock)
-        : null,
     });
   };
 
@@ -223,7 +179,7 @@ export default function Purchases() {
   const addPurchaseItem = () => {
     setPurchaseItems([
       ...purchaseItems,
-      { ingredientId: "", quantity: "", totalCost: "" },
+      { itemId: "", quantity: "", totalCost: "" },
     ]);
   };
 
@@ -279,6 +235,10 @@ export default function Purchases() {
           >
             <DialogHeader>
               <DialogTitle>Create Purchase Order</DialogTitle>
+              <DialogDescription>
+                Select a supplier, add items, and specify quantities to create a
+                new purchase order.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-6">
               {/* Header Info */}
@@ -342,41 +302,22 @@ export default function Purchases() {
                     <Card key={index} className="p-4">
                       <div className="grid grid-cols-12 gap-4 items-end">
                         <div className="col-span-5">
-                          <Label>Ingredient</Label>
+                          <Label>Item</Label>
                           <Select
-                            value={item.ingredientId}
+                            value={item.itemId}
                             onValueChange={(value) => {
-                              if (value === "add-new") {
-                                setIsAddIngredientDialogOpen(true);
-                              } else {
-                                updatePurchaseItem(
-                                  index,
-                                  "ingredientId",
-                                  value
-                                );
-                              }
+                              updatePurchaseItem(index, "itemId", value);
                             }}
                           >
                             <SelectTrigger
-                              data-testid={`ingredient-select-${index}`}
+                              data-testid={`item-select-${index}`}
                             >
-                              <SelectValue placeholder="Select ingredient" />
+                              <SelectValue placeholder="Select item" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem
-                                value="add-new"
-                                onSelect={() =>
-                                  setIsAddIngredientDialogOpen(true)
-                                }
-                              >
-                                Add New Ingredient
-                              </SelectItem>
-                              {ingredients.map((ingredient: any) => (
-                                <SelectItem
-                                  key={ingredient.id}
-                                  value={ingredient.id}
-                                >
-                                  {ingredient.name} ({ingredient.unit})
+                              {rawItems.map((rawItem: any) => (
+                                <SelectItem key={rawItem.id} value={rawItem.id}>
+                                  {rawItem.name} ({rawItem.unit})
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -424,7 +365,9 @@ export default function Purchases() {
                         <div className="col-span-2">
                           <Label>Unit Cost</Label>
                           <p className="text-sm text-muted-foreground mt-2">
-                            ${calculateUnitCost(item.totalCost, item.quantity)}
+                            {formatCurrency(
+                              calculateUnitCost(item.totalCost, item.quantity)
+                            )}
                           </p>
                         </div>
 
@@ -474,70 +417,6 @@ export default function Purchases() {
         </Dialog>
       </div>
 
-      {/* Add New Ingredient Dialog */}
-      <Dialog
-        open={isAddIngredientDialogOpen}
-        onOpenChange={setIsAddIngredientDialogOpen}
-      >
-        <DialogContent data-testid="add-ingredient-dialog">
-          <DialogHeader>
-            <DialogTitle>Add New Ingredient</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Ingredient Name</Label>
-              <Input
-                id="name"
-                value={newIngredientName}
-                onChange={(e) => setNewIngredientName(e.target.value)}
-                placeholder="e.g. Flour"
-                data-testid="ingredient-name-input"
-              />
-            </div>
-            <div>
-              <Label htmlFor="unit">Unit</Label>
-              <Select
-                value={newIngredientUnit}
-                onValueChange={setNewIngredientUnit}
-              >
-                <SelectTrigger data-testid="unit-select">
-                  <SelectValue placeholder="Select unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="g">Grams (g)</SelectItem>
-                  <SelectItem value="kg">Kilograms (kg)</SelectItem>
-                  <SelectItem value="ml">Milliliters (ml)</SelectItem>
-                  <SelectItem value="l">Liters (l)</SelectItem>
-                  <SelectItem value="unit">Units (unit)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="lowStock">Low Stock Level (optional)</Label>
-              <Input
-                id="lowStock"
-                type="number"
-                step="0.1"
-                value={newIngredientLowStock}
-                onChange={(e) => setNewIngredientLowStock(e.target.value)}
-                placeholder="e.g. 10"
-                data-testid="low-stock-input"
-              />
-            </div>
-            <Button
-              onClick={handleCreateIngredient}
-              disabled={createIngredientMutation.isPending}
-              className="w-full"
-              data-testid="create-ingredient-button"
-            >
-              {createIngredientMutation.isPending
-                ? "Creating..."
-                : "Create Ingredient"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Add New Supplier Dialog */}
       <Dialog
         open={isAddSupplierDialogOpen}
@@ -546,6 +425,9 @@ export default function Purchases() {
         <DialogContent data-testid="add-supplier-dialog">
           <DialogHeader>
             <DialogTitle>Add New Supplier</DialogTitle>
+            <DialogDescription>
+              Enter the new supplier's details below.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -645,7 +527,7 @@ export default function Purchases() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground">
-                        Multiple items
+                        {purchase.items?.length || 0} items
                       </span>
                     </TableCell>
                     <TableCell className="max-w-xs truncate">

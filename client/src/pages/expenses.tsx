@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -29,7 +30,6 @@ import {
 import {
   Receipt,
   Plus,
-  DollarSign,
   CreditCard,
   Wallet,
   TrendingUp,
@@ -138,7 +138,7 @@ export default function Expenses() {
   const getPaymentIcon = (paymentType: string) => {
     switch (paymentType) {
       case "CASH":
-        return <DollarSign className="h-4 w-4" />;
+        return <Wallet className="h-4 w-4" />;
       case "CARD":
         return <CreditCard className="h-4 w-4" />;
       default:
@@ -163,6 +163,9 @@ export default function Expenses() {
           <DialogContent data-testid="create-expense-dialog">
             <DialogHeader>
               <DialogTitle>Record New Expense</DialogTitle>
+              <DialogDescription>
+                Fill in the details below to record a new business expense.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -200,7 +203,7 @@ export default function Expenses() {
                   <SelectContent>
                     <SelectItem value="CASH">
                       <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 mr-2" />
+                        <Wallet className="h-4 w-4 mr-2" />
                         Cash
                       </div>
                     </SelectItem>
@@ -302,7 +305,7 @@ export default function Expenses() {
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
+                <Wallet className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>

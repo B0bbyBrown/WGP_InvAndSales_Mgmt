@@ -3,7 +3,6 @@ import {
   ShoppingCart,
   Package,
   Utensils,
-  DollarSign,
   Coins,
   Receipt,
   BarChart3,
@@ -20,8 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { getActiveCashSession, getLowStock } from "@/lib/api";
-import { useContext } from "react";
-import { AuthContext } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "../lib/api";
 
 interface LayoutProps {
@@ -31,7 +29,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title, description }: LayoutProps) {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [location, setLocation] = useLocation();
 
   const handleLogout = async () => {
@@ -49,52 +47,67 @@ export default function Layout({ children, title, description }: LayoutProps) {
     queryFn: () => getLowStock(),
   });
 
-  const navigation = [
-    { name: "Dashboard", href: "/", icon: BarChart3, active: location === "/" },
+  const allNavigation = [
     {
-      name: "Inventory",
-      href: "/inventory",
-      icon: Package,
-      active: location === "/inventory",
-      badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
+      name: "Dashboard",
+      href: "/",
+      icon: BarChart3,
+      roles: ["ADMIN", "CASHIER"],
     },
     {
-      name: "Products & Recipes",
-      href: "/products",
-      icon: Utensils,
-      active: location === "/products",
+      name: "Items",
+      href: "/items",
+      icon: Package,
+      badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
+      roles: ["ADMIN"],
     },
     {
       name: "Purchases",
       href: "/purchases",
       icon: ShoppingCart,
-      active: location === "/purchases",
+      roles: ["ADMIN"],
     },
     {
       name: "Point of Sale",
       href: "/sales",
       icon: ScanBarcode,
-      active: location === "/sales",
+      roles: ["ADMIN", "CASHIER"],
     },
     {
       name: "Cash Sessions",
       href: "/sessions",
       icon: Coins,
-      active: location === "/sessions",
+      roles: ["ADMIN", "CASHIER"],
+    },
+    {
+      name: "Kitchen View",
+      href: "/kitchen",
+      icon: Utensils,
+      roles: ["KITCHEN"],
     },
     {
       name: "Expenses",
       href: "/expenses",
       icon: Receipt,
-      active: location === "/expenses",
+      roles: ["ADMIN"],
     },
     {
       name: "Reports",
       href: "/reports",
       icon: BarChart3,
-      active: location === "/reports",
+      roles: ["ADMIN"],
+    },
+    {
+      name: "Users",
+      href: "/users",
+      icon: User,
+      roles: ["ADMIN"],
     },
   ];
+
+  const navigation = allNavigation
+    .filter((item) => user && item.roles.includes(user.role))
+    .map((item) => ({ ...item, active: location === item.href }));
 
   const formatTime = (date: Date) => {
     return new Intl.DateTimeFormat("en-US", {
@@ -275,15 +288,6 @@ export default function Layout({ children, title, description }: LayoutProps) {
               </Button>
               {user && (
                 <>
-                  {user.role === "ADMIN" && (
-                    <Link
-                      href="/users"
-                      className="px-3 py-1 border border-border rounded-md text-sm bg-background"
-                      data-testid="users-link"
-                    >
-                      Users
-                    </Link>
-                  )}
                   <Button
                     variant="default"
                     size="sm"

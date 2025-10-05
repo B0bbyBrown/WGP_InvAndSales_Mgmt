@@ -1,12 +1,10 @@
 import {
   type User,
   type InsertUser,
-  type Ingredient,
-  type InsertIngredient,
+  type Item,
+  type InsertItem,
   type Supplier,
   type InsertSupplier,
-  type Product,
-  type InsertProduct,
   type Purchase,
   type InsertPurchase,
   type PurchaseItem,
@@ -29,6 +27,7 @@ import {
   type NewSale,
   type StockAdjustment,
   type OpenSessionRequest,
+  type NewItem,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -43,38 +42,25 @@ export interface IStorage {
   loginUser(email: string, password: string): Promise<SafeUser | null>; // Returns user without password if credentials match
   getUsers(): Promise<SafeUser[]>;
 
-  // Ingredients
-  getIngredients(): Promise<Ingredient[]>;
-  getIngredient(id: string): Promise<Ingredient | undefined>;
-  getIngredientByName(name: string): Promise<Ingredient | undefined>;
-  createIngredient(ingredient: InsertIngredient): Promise<Ingredient>;
-  updateIngredient(
-    id: string,
-    ingredient: Partial<InsertIngredient>
-  ): Promise<Ingredient>;
+  // Items (replaces Ingredients and Products)
+  getItems(): Promise<Item[]>;
+  getItem(id: string): Promise<Item | undefined>;
+  getItemByName(name: string): Promise<Item | undefined>;
+  getItemBySku(sku: string): Promise<Item | undefined>;
+  createItem(item: NewItem): Promise<Item>;
+  updateItem(id: string, item: Partial<InsertItem>): Promise<Item>;
 
   // Suppliers
   getSuppliers(): Promise<Supplier[]>;
   createSupplier(supplier: InsertSupplier): Promise<Supplier>;
 
-  // Products
-  getProducts(): Promise<Product[]>;
-  getProduct(id: string): Promise<Product | undefined>;
-  createProduct(product: {
-    name: string;
-    sku: string;
-    price: string | number;
-    active?: boolean;
-  }): Promise<Product>;
-  updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product>;
-
   // Recipe Items
-  getRecipeItems(productId: string): Promise<RecipeItem[]>;
+  getRecipeItems(parentItemId: string): Promise<RecipeItem[]>;
   createRecipeItem(recipeItem: InsertRecipeItem): Promise<RecipeItem>;
-  deleteRecipeItems(productId: string): Promise<void>;
+  deleteRecipeItems(parentItemId: string): Promise<void>;
 
   // Inventory Lots
-  getInventoryLots(ingredientId: string): Promise<InventoryLot[]>;
+  getInventoryLots(itemId: string): Promise<InventoryLot[]>;
   createInventoryLot(lot: InsertInventoryLot): Promise<InventoryLot>;
   updateInventoryLot(
     id: string,
@@ -87,7 +73,7 @@ export interface IStorage {
 
   // Stock Movements
   createStockMovement(movement: InsertStockMovement): Promise<StockMovement>;
-  getStockMovements(ingredientId?: string): Promise<StockMovement[]>;
+  getStockMovements(itemId?: string): Promise<StockMovement[]>;
 
   // Stock Adjustments
   adjustStock(adjustment: StockAdjustment): Promise<void>;
@@ -129,17 +115,17 @@ export interface IStorage {
   // Reports
   getCurrentStock(): Promise<
     {
-      ingredientId: string;
-      ingredientName: string;
+      itemId: string;
+      itemName: string;
       totalQuantity: string;
       unit: string;
       lowStockLevel: string | null;
     }[]
   >;
-  getLowStockIngredients(): Promise<
+  getLowStockItems(): Promise<
     {
-      ingredientId: string;
-      ingredientName: string;
+      itemId: string;
+      itemName: string;
       totalQuantity: string;
       unit: string;
       lowStockLevel: string;
@@ -156,8 +142,8 @@ export interface IStorage {
     to: Date
   ): Promise<
     {
-      productId: string;
-      productName: string;
+      itemId: string;
+      itemName: string;
       sku: string;
       totalQty: number;
       totalRevenue: string;
@@ -165,7 +151,7 @@ export interface IStorage {
   >;
   getRecentActivity(limit: number): Promise<any[]>;
   getPendingOrders(): Promise<
-    { sale: Sale; items: (SaleItem & { productName: string })[] }[]
+    { sale: Sale; items: (SaleItem & { itemName: string })[] }[]
   >;
   updateSaleItemStatus(id: string, status: string): Promise<SaleItem>;
 }

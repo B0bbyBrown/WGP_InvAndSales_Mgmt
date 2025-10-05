@@ -24,7 +24,6 @@ import {
   Plus,
   Minus,
   Trash2,
-  DollarSign,
   CreditCard,
   Wallet,
   ShoppingCart,
@@ -32,7 +31,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  getProducts,
+  getItems,
   createSale,
   getSales,
   getActiveCashSession,
@@ -44,18 +43,17 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
 
 interface SaleItem {
-  productId: string;
+  itemId: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
-  productName: string;
+  itemName: string;
   sku: string;
 }
 
 export default function Sales() {
   const [, setLocation] = useLocation(); // Use setLocation for navigation
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState("");
   const [paymentType, setPaymentType] = useState<"CASH" | "CARD" | "OTHER">(
     "CASH"
   );
@@ -63,10 +61,11 @@ export default function Sales() {
 
   const { toast } = useToast();
 
-  const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ["/api/products"],
-    queryFn: () => getProducts(),
+  const { data: allItems = [], isLoading: itemsLoading } = useQuery({
+    queryKey: ["/api/items"],
+    queryFn: getItems,
   });
+  const sellableItems = allItems.filter((item) => item.type === "SELLABLE");
 
   const { data: activeSession, isLoading: sessionLoading } = useQuery({
     queryKey: ["/api/sessions/active"],
@@ -104,7 +103,7 @@ export default function Sales() {
     },
   });
 
-  if (sessionLoading) {
+  if (sessionLoading || itemsLoading) {
     return <div>Loading...</div>;
   }
 
@@ -124,19 +123,18 @@ export default function Sales() {
     );
   }
 
-  const filteredProducts = products.filter(
-    (product: any) =>
-      product.active &&
-      (product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredItems = sellableItems.filter(
+    (item: any) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const addItemToSale = (productId: string) => {
-    const product = products.find((p: any) => p.id === productId);
-    if (!product) return;
+  const addItemToSale = (itemId: string) => {
+    const itemToAdd = sellableItems.find((p: any) => p.id === itemId);
+    if (!itemToAdd) return;
 
     const existingItemIndex = saleItems.findIndex(
-      (item) => item.productId === productId
+      (item) => item.itemId === itemId
     );
 
     if (existingItemIndex >= 0) {
@@ -147,33 +145,33 @@ export default function Sales() {
       setSaleItems(updated);
     } else {
       const newItem: SaleItem = {
-        productId: product.id,
+        itemId: itemToAdd.id,
         qty: 1,
-        unitPrice: parseFloat(product.price),
-        lineTotal: parseFloat(product.price),
-        productName: product.name,
-        sku: product.sku,
+        unitPrice: parseFloat(itemToAdd.price),
+        lineTotal: parseFloat(itemToAdd.price),
+        itemName: itemToAdd.name,
+        sku: itemToAdd.sku,
       };
       setSaleItems([...saleItems, newItem]);
     }
   };
 
-  const updateItemQuantity = (productId: string, newQty: number) => {
+  const updateItemQuantity = (itemId: string, newQty: number) => {
     if (newQty <= 0) {
-      setSaleItems(saleItems.filter((item) => item.productId !== productId));
+      setSaleItems(saleItems.filter((item) => item.itemId !== itemId));
       return;
     }
 
     const updated = saleItems.map((item) =>
-      item.productId === productId
+      item.itemId === itemId
         ? { ...item, qty: newQty, lineTotal: newQty * item.unitPrice }
         : item
     );
     setSaleItems(updated);
   };
 
-  const removeItemFromSale = (productId: string) => {
-    setSaleItems(saleItems.filter((item) => item.productId !== productId));
+  const removeItemFromSale = (itemId: string) => {
+    setSaleItems(saleItems.filter((item) => item.itemId !== itemId));
   };
 
   const calculateSubtotal = () => {
@@ -194,7 +192,7 @@ export default function Sales() {
       sessionId: activeSession?.id,
       paymentType,
       items: saleItems.map((item) => ({
-        productId: item.productId,
+        itemId: item.itemId,
         qty: item.qty,
       })),
     };
@@ -252,34 +250,34 @@ export default function Sales() {
               className="grid grid-cols-1 gap-3 max-h-96 overflow-y-auto"
               data-testid="products-list"
             >
-              {filteredProducts.map((product: any) => (
+              {filteredItems.map((item: any) => (
                 <div
-                  key={product.id}
+                  key={item.id}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
-                  onClick={() => addItemToSale(product.id)}
-                  data-testid={`product-item-${product.sku.toLowerCase()}`}
+                  onClick={() => addItemToSale(item.id)}
+                  data-testid={`product-item-${item.sku.toLowerCase()}`}
                 >
                   <div>
-                    <p className="font-medium">{product.name}</p>
+                    <p className="font-medium">{item.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      SKU: {product.sku}
+                      SKU: {item.sku}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold">
-                      {formatCurrency(product.price)}
+                      {formatCurrency(item.price)}
                     </p>
                     <Button
                       size="sm"
                       className="mt-1"
-                      data-testid={`add-product-${product.sku.toLowerCase()}`}
+                      data-testid={`add-product-${item.sku.toLowerCase()}`}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
               ))}
-              {filteredProducts.length === 0 && (
+              {filteredItems.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   {searchTerm
                     ? "No products found"
@@ -310,12 +308,12 @@ export default function Sales() {
                 <div className="space-y-2">
                   {saleItems.map((item) => (
                     <div
-                      key={item.productId}
+                      key={item.itemId}
                       className="flex items-center justify-between p-3 border rounded-lg"
                       data-testid={`sale-item-${item.sku.toLowerCase()}`}
                     >
                       <div className="flex-1">
-                        <p className="font-medium">{item.productName}</p>
+                        <p className="font-medium">{item.itemName}</p>
                         <p className="text-sm text-muted-foreground">
                           {item.sku}
                         </p>
@@ -325,7 +323,7 @@ export default function Sales() {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            updateItemQuantity(item.productId, item.qty - 1)
+                            updateItemQuantity(item.itemId, item.qty - 1)
                           }
                           data-testid={`decrease-qty-${item.sku.toLowerCase()}`}
                         >
@@ -341,7 +339,7 @@ export default function Sales() {
                           size="sm"
                           variant="outline"
                           onClick={() =>
-                            updateItemQuantity(item.productId, item.qty + 1)
+                            updateItemQuantity(item.itemId, item.qty + 1)
                           }
                           data-testid={`increase-qty-${item.sku.toLowerCase()}`}
                         >
@@ -353,7 +351,7 @@ export default function Sales() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => removeItemFromSale(item.productId)}
+                          onClick={() => removeItemFromSale(item.itemId)}
                           data-testid={`remove-item-${item.sku.toLowerCase()}`}
                         >
                           <Trash2 className="h-3 w-3" />
@@ -388,7 +386,7 @@ export default function Sales() {
                 <SelectContent>
                   <SelectItem value="CASH">
                     <div className="flex items-center">
-                      <DollarSign className="h-4 w-4 mr-2" />
+                      <Wallet className="h-4 w-4 mr-2" />
                       Cash
                     </div>
                   </SelectItem>

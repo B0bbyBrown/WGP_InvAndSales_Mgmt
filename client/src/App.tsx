@@ -4,8 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
-import Inventory from "@/pages/inventory";
-import Products from "@/pages/products";
+import Items from "@/pages/items";
 import Purchases from "@/pages/purchases";
 import Sales from "@/pages/sales";
 import Sessions from "@/pages/sessions";
@@ -58,16 +57,11 @@ function App() {
             <ProtectedRoute
               path="/dashboard"
               component={Dashboard}
-              allowedRoles={["ADMIN", "DEV"]}
+              allowedRoles={["ADMIN", "CASHIER", "KITCHEN", "DEV"]}
             />
             <ProtectedRoute
-              path="/inventory"
-              component={Inventory}
-              allowedRoles={["ADMIN", "CASHIER", "DEV"]}
-            />
-            <ProtectedRoute
-              path="/products"
-              component={Products}
+              path="/items"
+              component={Items}
               allowedRoles={["ADMIN", "DEV"]}
             />
             <ProtectedRoute
@@ -135,9 +129,12 @@ const ProtectedRoute = ({ path, component: Component, allowedRoles }) => {
   const userHasRequiredRole = user && allowedRoles.includes(user.role);
 
   if (!userHasRequiredRole) {
-    console.log(`Redirecting to /dashboard from ${path} - insufficient role`);
+    console.log(`Redirecting from ${path} - insufficient role`);
     // If the user is authenticated but doesn't have the right role,
-    // redirect them to the dashboard.
+    // redirect them to a default page based on their role.
+    if (user.role === "KITCHEN") {
+      return <Redirect to="/kitchen" />;
+    }
     return <Redirect to="/dashboard" />;
   }
 

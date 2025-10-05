@@ -23,7 +23,6 @@ import {
   BarChart3,
   TrendingUp,
   TrendingDown,
-  DollarSign,
   Package,
   Percent,
   ShoppingBag,
@@ -300,7 +299,7 @@ export default function Reports() {
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
+                <TrendingUp className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
