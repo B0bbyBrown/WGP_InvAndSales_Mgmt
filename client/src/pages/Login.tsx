@@ -33,10 +33,11 @@ export default function Login() {
         queryFn: getActiveCashSession,
       });
 
-      if (activeSession) {
-        setLocation("/dashboard");
-      } else {
+      // Role-based redirect
+      if (response.user.role === "CASHIER" && !activeSession) {
         setLocation("/sessions");
+      } else {
+        setLocation("/dashboard");
       }
     },
     onError: (error) => {
