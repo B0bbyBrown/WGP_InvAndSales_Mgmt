@@ -5,7 +5,36 @@ import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { useState } from "react";
-import { useLocation } from "wouter"; // wouter's navigation
+import { useLocation } from "wouter";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../components/ui/accordion";
+import {
+  PlusCircle,
+  Package,
+  ShoppingCart,
+  Receipt,
+  Users,
+  Coins,
+  Utensils,
+  BarChart3,
+  Weight,
+} from "lucide-react";
+
+const taskIcons = {
+  "add-product": <PlusCircle className="mr-2 h-5 w-5 text-blue-500" />,
+  "change-ingredient": <Weight className="mr-2 h-5 w-5 text-yellow-500" />,
+  "process-sale": <ShoppingCart className="mr-2 h-5 w-5 text-green-500" />,
+  "add-expense": <Receipt className="mr-2 h-5 w-5 text-red-500" />,
+  "manage-users": <Users className="mr-2 h-5 w-5 text-indigo-500" />,
+  "open-close-session": <Coins className="mr-2 h-5 w-5 text-purple-500" />,
+  "prep-kitchen-order": <Utensils className="mr-2 h-5 w-5 text-orange-500" />,
+  "update-inventory": <Package className="mr-2 h-5 w-5 text-teal-500" />,
+  "view-reports": <BarChart3 className="mr-2 h-5 w-5 text-pink-500" />,
+};
 
 // Define task data (expand this array with more tasks)
 const tasks = [
@@ -231,21 +260,61 @@ export default function Help() {
                     route.replace("/", "").slice(1)}{" "}
                   Page
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Accordion type="single" collapsible className="w-full">
                   {routeTasks.map((task) => (
-                    <Card key={task.id} className="p-4">
-                      <h4 className="text-lg font-semibold">{task.title}</h4>
-                      <p>{task.description}</p>
-                      <Button
-                        onClick={() => handleTaskClick(task.redirect)}
-                        className="mt-2"
-                      >
-                        Go to Task
-                      </Button>
-                      {/* Add modal trigger here for steps/logic/screenshot */}
-                    </Card>
+                    <AccordionItem
+                      key={task.id}
+                      value={task.id}
+                      className="border-b last:border-b-0"
+                    >
+                      <AccordionTrigger className="flex items-center">
+                        {taskIcons[task.id]}
+                        {task.title}
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <p>{task.description}</p>
+                        <Button
+                          onClick={() => handleTaskClick(task.redirect)}
+                          className="mt-2"
+                        >
+                          Go to Task
+                        </Button>
+                        {task.steps && (
+                          <div className="mt-4">
+                            <h4 className="text-lg font-semibold mb-2">
+                              Steps:
+                            </h4>
+                            <ul className="list-disc list-inside">
+                              {task.steps.map((step, index) => (
+                                <li key={index}>{step}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {task.logic && (
+                          <div className="mt-4">
+                            <h4 className="text-lg font-semibold mb-2">
+                              Logic:
+                            </h4>
+                            <p>{task.logic}</p>
+                          </div>
+                        )}
+                        {task.screenshot && (
+                          <div className="mt-4">
+                            <h4 className="text-lg font-semibold mb-2">
+                              Screenshot:
+                            </h4>
+                            <img
+                              src={task.screenshot}
+                              alt={task.title}
+                              className="max-w-sm h-auto"
+                            />
+                          </div>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
                   ))}
-                </div>
+                </Accordion>
               </div>
             ))}
           </div>

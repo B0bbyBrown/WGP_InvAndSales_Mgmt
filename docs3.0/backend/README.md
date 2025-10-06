@@ -12,6 +12,16 @@ The backend code is located in the `server/` directory and is organized as follo
 - **`storage.ts`** & **`sqlite-storage.ts`**: Defines the interface and implementation for all database operations.
 - **`seed.ts`**: A script for populating the database with initial data.
 
+## Technology Stack
+
+- **Runtime**: Node.js
+- **Framework**: Express.js for routing and middleware.
+- **Database**: SQLite, a file-based database, accessed via `better-sqlite3`.
+- **ORM**: Drizzle ORM for type-safe database queries.
+- **Authentication**: `express-session` for session management and `bcryptjs` for password hashing.
+- **Validation**: `zod` for request payload validation.
+- **Language**: TypeScript for static typing.
+
 ## API Endpoints
 
 - Link to the [API reference](./api/README.md).

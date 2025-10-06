@@ -11,6 +11,30 @@
   - Login redirects based on role and session status (e.g., to /sessions if no active session).
 - Features include FIFO inventory tracking, real-time stock updates, reporting, and role-based access (ADMIN, CASHIER, KITCHEN).
 
+## Technology Stack
+
+This project uses a modern, full-stack TypeScript approach.
+
+- **Frontend**:
+
+  - **Framework**: React with Vite for a fast development experience.
+  - **Styling**: Tailwind CSS for utility-first styling, with components from Shadcn UI and Radix UI.
+  - **Data Fetching**: TanStack Query for server state management and caching.
+  - **Routing**: Wouter for simple and lightweight routing.
+  - **Charting**: Recharts for creating beautiful charts.
+
+- **Backend**:
+
+  - **Runtime**: Node.js with Express.js as the web server framework.
+  - **Database**: SQLite via `better-sqlite3` for a simple, file-based database.
+  - **ORM**: Drizzle ORM for type-safe and powerful database queries.
+  - **Authentication**: `express-session` for managing user sessions.
+  - **Validation**: Zod for robust schema validation.
+
+- **Shared**:
+  - **Language**: TypeScript across the entire stack.
+  - **Package Manager**: `npm`
+
 ## Table of Contents
 
 - [Getting Started](./getting-started/README.md)

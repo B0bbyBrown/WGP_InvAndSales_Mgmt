@@ -127,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Items (replaces Ingredients and Products)
   app.get(
     "/api/raw-materials",
-    authMiddleware(["ADMIN", "KITCHEN"]), // Add KITCHEN role
+    authMiddleware(["ADMIN", "KITCHEN", "CASHIER"]), // Add KITCHEN role
     async (req, res) => {
       try {
         const items = await storage.getItems();

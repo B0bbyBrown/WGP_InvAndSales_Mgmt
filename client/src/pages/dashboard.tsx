@@ -671,6 +671,7 @@ export default function Dashboard() {
   const renderDashboard = () => {
     switch (user.role) {
       case "ADMIN":
+      case "DEV":
         return <AdminDashboard />;
       case "CASHIER":
         return <CashierDashboard />;

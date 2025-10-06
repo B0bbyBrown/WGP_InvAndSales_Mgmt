@@ -12,6 +12,8 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -75,7 +77,7 @@ export default function Sessions() {
     queryKey: ["/api/raw-materials"],
     queryFn: getRawMaterials,
   });
-  const rawItems = allItems.filter((item) => item.type === "RAW");
+  const rawItems = allItems;
 
   const { data: todaySales = [] } = useQuery({
     queryKey: ["/api/sales", "today"],
