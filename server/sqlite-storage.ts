@@ -766,8 +766,16 @@ export class SqliteStorage implements IStorage {
             0
           );
           if (totalAvailable < quantity) {
+            const item = tx
+              .select({ name: items.name })
+              .from(items)
+              .where(eq(items.id, snapshot.itemId))
+              .get();
+            const itemName = item
+              ? item.name
+              : `item with ID ${snapshot.itemId}`;
             throw new Error(
-              `Insufficient inventory for session. Available: ${totalAvailable}, Required: ${quantity}`
+              `Insufficient inventory for ${itemName}. Available: ${totalAvailable}, Required: ${quantity}`
             );
           }
 
@@ -785,11 +793,27 @@ export class SqliteStorage implements IStorage {
             remaining -= consumed;
           }
         } else {
+          // Closing a session: return remaining inventory to stock
+          const existingLots = tx
+            .select()
+            .from(inventoryLots)
+            .where(eq(inventoryLots.itemId, snapshot.itemId))
+            .all();
+
+          const totalQuantity = existingLots.reduce(
+            (s, l) => s + l.quantity,
+            0
+          );
+          const totalCost = existingLots.reduce(
+            (s, l) => s + l.quantity * l.unitCost,
+            0
+          );
+          const averageCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
           tx.insert(inventoryLots)
             .values({
               itemId: snapshot.itemId,
               quantity,
-              unitCost: 0,
+              unitCost: averageCost,
               purchasedAt: new Date(),
             })
             .run();

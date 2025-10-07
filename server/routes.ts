@@ -218,7 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get(
     "/api/stock/low",
-    authMiddleware(["ADMIN", "KITCHEN"]), // Add KITCHEN role
+    authMiddleware(["ADMIN", "KITCHEN", "CASHIER"]), // Add KITCHEN role
     async (req, res) => {
       try {
         const lowStock = await storage.getLowStockItems();
